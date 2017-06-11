@@ -24,7 +24,6 @@
 ######################   OPTIMIZATION PROBLEM   ########################
 ########################################################################
 def problem_function(x):
-
     f = [0.0]*1 # Initialize array for objectives F(X)
     g = [0.0]*3 # Initialize array for constraints G(X)
 
@@ -32,7 +31,7 @@ def problem_function(x):
     f[0] = (x[0] - 1)*(x[0] - 1) + \
            (x[1] - 2)*(x[1] - 2) + \
            (x[2] - 3)*(x[2] - 3) + \
-           (x[3] - 4)*(x[3] - 4) + \
+           (x[3] - 4)*(x[3] - 4)**2 + \
            1.23456789  
     
     #  Equality constraints G(X) = 0 MUST COME FIRST in g[0:me-1]
