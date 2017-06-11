@@ -1,5 +1,6 @@
 import openpyxl
 
+# to interactively run this file, execute the following on IDLE
 # exec(open(r'C:\Users\pu\Pictures\MINLP-Solve\minlp\xlsx_reader.py').read(), globals())
 
 xlsx_path = r'C:\Users\pu\Pictures\MINLP-Solve\minlp\Parameters.xlsx'
