@@ -24,7 +24,7 @@
 ######################   OPTIMIZATION PROBLEM   ########################
 ########################################################################
 def problem_function(x):
-    print(SP_jt)
+    print("tweaked x:", x)
     f = [0.0]*1 # Initialize array for objectives F(X)
     g = [0.0]*3 # Initialize array for constraints G(X)
 
@@ -47,17 +47,18 @@ def problem_function(x):
 #########################   MAIN PROGRAM   #############################
 ########################################################################
 import random
+import numpy
 
-def random_float(min=0.5, max=100.5):
-    return random.uniform(min, max)
+def random_float(min=0.5, max=4.5):
+    return round(random.uniform(min, max))
 
 def init_ndim_array(dimensions, default=None):
     if type(dimensions) is not list or len(dimensions) <= 0: return default
     else: return init_ndim_array(dimensions, default=[default]*dimensions.pop())
 
-max_j = 7
-max_r = 4
-max_t = 10
+max_j = 3
+max_r = 2
+max_t = 5
 SP_jt = init_ndim_array([max_j, max_t])
 ORDER_jrt = init_ndim_array([max_j, max_r, max_t])
 LOST_jrt = init_ndim_array([max_j, max_r, max_t])
@@ -68,6 +69,13 @@ for j in range(max_j):
         for r in range(max_r):
             ORDER_jrt[j][r][t] = random_float()
             LOST_jrt[j][r][t] = random_float()
+
+flat = numpy.array(SP_jt).reshape(max_j * max_t)
+unflat = flat.reshape(max_j, max_t)
+
+Mx = list(flat)
+Mxl = [0] * len(Mx)
+Mxu = [i*2.0 for i in Mx]
 
 key = b'MIDACO_LIMITED_VERSION___[CREATIVE_COMMONS_BY-NC-ND_LICENSE]'
 
@@ -83,15 +91,15 @@ problem['@'] = problem_function # Handle for problem function name
 # STEP 1.A: Problem dimensions
 ##############################
 problem['o']  = 1  # Number of objectives 
-problem['n']  = 4  # Number of variables (in total) 
+problem['n']  = 4 #+ len(flat)  # Number of variables (in total) 
 problem['ni'] = 2  # Number of integer variables (0 <= ni <= n) 
 problem['m']  = 3  # Number of constraints (in total) 
 problem['me'] = 1  # Number of equality constraints (0 <= me <= m) 
 
 # STEP 1.B: Lower and upper bounds 'xl' & 'xu'  
 ##############################################  
-problem['xl'] = [ 1, 1, 1, 1 ]
-problem['xu'] = [ 4, 4, 4, 4 ]
+problem['xl'] = [ 1, 1, 1, 1 ] #+ [1] * len(flat)
+problem['xu'] = [ 4, 4, 4, 4 ] #+ [4] * len(flat)
 
 # STEP 1.C: Starting point 'x'  
 ##############################  
