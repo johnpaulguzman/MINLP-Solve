@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: DIP
+Description: Decomposition for Integer Programs
+URL: https://projects.coin-or.org/Dip
+Version: 0.83.0
+Libs: -L${libdir} -lDecomp 
+Cflags: -I${includedir}
+Requires: osi-cbc cgl osi-clp coinutils osi alps 

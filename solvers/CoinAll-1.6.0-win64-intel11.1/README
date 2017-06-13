@@ -1,0 +1,16 @@
+from pyomo.environ import *
+from pyomo.opt import SolverFactory
+
+a = 370
+b = 420
+c = 2
+
+model             = ConcreteModel()
+model.x           = Var([1,2], domain=NonNegativeIntegers)
+model.Objective   = Objective(expr = a * model.x[1] + b * model.x[2], sense=minimize)
+model.Constraint1 = Constraint(expr = model.x[1] + model.x[2] == c)
+# ... more constraints
+
+opt = SolverFactory("bonmin", executable=r"C:\Users\pu\Desktop\paul\CoinAll-1.6.0-win64-intel11.1\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe")
+
+results = opt.solve(model)

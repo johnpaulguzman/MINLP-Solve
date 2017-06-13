@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: BCPS
+Description: Branch, Constrain, and Price Software Fraework
+URL: https://projects.coin-or.org/CHiPPS
+Version: 0.93.1
+Libs: -L${libdir} -lBcps 
+Cflags: -I${includedir}
+Requires: alps 

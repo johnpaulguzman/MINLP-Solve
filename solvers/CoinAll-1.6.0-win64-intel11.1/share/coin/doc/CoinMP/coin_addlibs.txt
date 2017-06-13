@@ -1,0 +1,1 @@
+-libpath:/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default/lib libCoinMP.lib @CBCLIB_LIBS_INSTALLED@

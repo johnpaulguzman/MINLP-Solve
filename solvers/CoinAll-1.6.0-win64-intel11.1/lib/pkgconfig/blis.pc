@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: BLIS
+Description: BiCePS Linear Integer Solver
+URL: https://projects.coin-or.org/CHiPPS
+Version: 0.93.1
+Libs: -L${libdir} -lBlis 
+Cflags: -I${includedir}
+Requires: bcps cgl osi-clp 

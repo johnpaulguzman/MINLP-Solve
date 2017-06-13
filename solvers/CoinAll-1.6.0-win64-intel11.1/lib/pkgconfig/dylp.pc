@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: DyLP
+Description: dynamic simplex linear programming solver
+URL: https://projects.coin-or.org/DyLP
+Version: 1.8.2
+Libs: -L${libdir} -lDylp 
+Cflags: -I${includedir}
+Requires:

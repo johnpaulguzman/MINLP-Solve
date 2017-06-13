@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: OS
+Description: COIN-OR Optimization Services
+URL: https://projects.coin-or.org/OS
+Version: 2.4.1
+Libs: -L${libdir} -lOS  wsock32.lib
+Cflags: -I${includedir}
+Requires: cppad coinasl bcp couenne cppad bonmin cppad osi-cbc osi-sym osi-vol osi-dylp osi-clp ipopt cppad coinutils 

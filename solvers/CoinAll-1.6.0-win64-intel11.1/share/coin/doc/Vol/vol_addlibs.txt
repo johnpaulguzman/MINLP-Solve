@@ -1,0 +1,1 @@
+-libpath:/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default/lib libVol.lib   -libpath:/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default/lib libCoinUtils.lib mkl_intel_lp64.lib mkl_sequential.lib mkl_core.lib mkl_intel_lp64.lib mkl_sequential.lib mkl_core.lib   

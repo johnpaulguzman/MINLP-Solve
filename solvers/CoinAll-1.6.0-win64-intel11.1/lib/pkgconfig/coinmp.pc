@@ -1,0 +1,12 @@
+prefix=/usr/home/svigerske/nbBuildDir/CoinAll/releases-1.6.0-default
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/coin
+
+Name: CoinMP
+Description: Simple C API for COIN-OR Solvers Clp and Cbc
+URL: https://projects.coin-or.org/CoinMP
+Version: 1.6.0
+Libs: -L${libdir} -lCoinMP 
+Cflags: -I${includedir}
+Requires: cbc clp osi-clp 
