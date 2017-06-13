@@ -1,7 +1,4 @@
 *.DS_Store
 *.pyc
 *dependencies/*
-*installer/*
-*extract.zip*
-*MIDACO_SCREEN.TXT*
-*MIDACO_SOLUTION.TXT*
+*dependencies.zip*
