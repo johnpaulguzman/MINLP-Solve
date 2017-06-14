@@ -1,20 +1,14 @@
-import os
+from xlsx_reader import XLSXReader
 from pyomo.environ import *
-irange = lambda start, end: list(range(start, end+1))
+import os
+import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
+#import code; code.interact(local=locals())
 
-current_dir = os.path.split(os.path.abspath(__file__))[0]
+
 solver_name = "bonmin"
-solver_path = current_dir + r"\..\solvers\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe"
-
-idx = {
-    "t" : irange(1, 7),
-    "f" : irange(1, 2),
-    "w" : irange(1, 3),
-    "r" : irange(1, 4),
-}
-idx["i"] = irange(1, 3)
-idx["j"] = irange(1, 2 ** idx["i"][-1] - 1)
-idx["k"] = irange(idx["i"][-1] + 1, 2 ** idx["i"][-1] - 1)
+solver_path = os.path.split(os.path.abspath(__file__))[0] + r"\..\solvers\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe"
+input_reader = XLSXReader()
+idx, params = input_reader.extract_idxParams()
 
 model = ConcreteModel()
 ## >> VARIABLES 
@@ -50,23 +44,6 @@ model.OP_jrt = Var(idx["j"], idx["r"], idx["t"], domain=Boolean)
 model.QW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=Boolean)
 model.QF_kft = Var(idx["k"], idx["f"], idx["t"], domain=Boolean)
 model.OFFER_jt = Var(idx["j"], idx["t"], domain=Boolean)
-## << VARIABLES  # Refer to as model.var[i1, i2, i3, ...]
-
-""" Domain options:
-    Any: all possible values
-    Reals : floating point values
-    PositiveReals: strictly positive floating point values
-    NonPositiveReals: non-positive floating point values
-    NegativeReals: strictly negative floating point value
-    NonNegativeReals: non-negative floating point values
-    UnitInterval: floating point values in the interval [0,1]
-    Integers: integer values
-    PositiveIntegers: positive integer values
-    NonPositiveIntegers: non-positive integer values
-    NegativeIntegers: negative integer values
-    NonNegativeIntegers: non-negative integer values
-    Boolean: boolean values, which can be represented as False/True, 0/1, ’False’/’True’ and ’F’/’T’
-"""
 
 print("Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)

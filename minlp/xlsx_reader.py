@@ -1,65 +1,69 @@
 import openpyxl
 import os
-irange = lambda start, end: list(range(int(start), int(end)+1))
-#import code; code.interact(local=locals())
 
-# to interactively run this file, execute the following on IDLE
-# exec(open(r'C:\Users\pu\Pictures\MINLP-Solve\minlp\xlsx_reader.py').read(), globals())
 
-current_dir = os.path.split(os.path.abspath(__file__))[0]
-xlsx_path = current_dir + r"\Parameters.xlsx"
-book = openpyxl.load_workbook(xlsx_path, data_only=True)
-info_delimiter = "&"
-dims_delimiter = "_"
-assign_delimiter = "="
-range_infix = "-"
-index_keyword = "INDEX_METADATA"
-P = {} # Parameters
-idx = {} # Indices
+class XLSXReader:
+    info_delimiter = "&"
+    dims_delimiter = "_"
+    assign_delimiter = "="
+    range_infix = "-"
+    index_keyword = "INDEX_METADATA"
+    decimal_precision = 16
+    none_index = lambda array: array.index(None) if None in array else None
 
-def extract_data_chunks(book):
-    data, data_chunks, data_dump = [], [], []
-    for w in book.worksheets:
-        for row in w.values:
-            data += [row]
-        data += [(None,)]
-    for d in data:
-        if d[0] is None: # note
-            if data_dump: # note
-                data_chunks += [data_dump]
-                data_dump = []
-        else: data_dump += [d] # note
-    return data_chunks
+    def __init__(self, xlsx_path="{}\\Parameters.xlsx".format(os.path.split(os.path.abspath(__file__))[0])):
+        self.round_places = self.decimal_precision-1
+        self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(xlsx_path, data_only=True))
 
-def init_idx(data_chunk):
-    index_data = {}
-    for index, index_range, *_ in data_chunk[1:]:
-        lb, ub, *_ = index_range.split(range_infix)
-        index_data[index] = irange(lb, ub)
-    return index_data
+    def extract_data_chunks(self, book, exclude=None):
+        data, data_chunks, data_dump = [], [], []
+        for w in book.worksheets[:exclude]:
+            for row in w.values:
+                data += [row]
+            data += [(None,)]
+        for d in data:
+            if d[0] is None: # note
+                if data_dump: # note
+                    data_chunks += [data_dump]
+                    data_dump = []
+            else: data_dump += [d] # note
+        return data_chunks
 
-data_chunks = extract_data_chunks(book)
+    def init_idx(self, data_chunk):
+        index_data = {}
+        for index, index_range, *_ in data_chunk[1:]:
+            lb, ub, *_ = index_range.split(self.range_infix)
+            index_data[index] = list(range(int(lb), int(ub)+1))
+        return index_data
 
-for data_chunk in data_chunks:
-    for row in data_chunk:
-        if row[0] == index_keyword:
-            idx = init_idx(data_chunk)
-            break
-        #elif:
+    def parse_dim_info(self, dims_dict, dim_info):
+        if not dim_info: return 
+        dim_index, dim_value, *_ = dim_info.split(self.assign_delimiter)
+        dims_dict[dim_index] = dim_value
 
-import code; code.interact(local=locals()); exit()
+    def process_number(self, number):
+        return round(number, self.round_places)
 
-prev_row_head = None
-for w in book.worksheets[0:1]:
-    P_key, key_info, dims = None, [], []
-    for row in w.values:
-        print(row)
-        continue
-        if row[0] is None: P_key, key_info, dims = None, [], []
-        elif row[0] == index_keyword: pass # store indices
-        elif prev_row_head is None:
-            P_key, *key_info = row[0].split(info_delimiter)
-            dims = list(P_key.split(dims_delimiter[1]))
-        else: pass # unwrap values
-        prev_row_head = row[0]
-
+    def extract_idxParams(self):
+        P = {}
+        idx = {}
+        for data_chunk in self.data_chunks:
+            if data_chunk[0][0] == self.index_keyword: idx = self.init_idx(data_chunk)
+            else:
+                index, *appended_dims_info = data_chunk[0][0].split(self.info_delimiter)
+                P[index] = {}
+                dims_dict = {}
+                for dim_info in appended_dims_info: self.parse_dim_info(dims_dict, dim_info)
+                splitted_index = index.split(self.dims_delimiter)
+                dims = tuple(splitted_index[1]) if len(splitted_index) == 2 else []
+                row_size = len(data_chunk[:XLSXReader.none_index(data_chunk)])  # gets rid of None rows
+                col_size = len(data_chunk[-1][:XLSXReader.none_index(data_chunk[-1])])  # gets rid of None columns
+                if row_size == 1: P[index] = self.process_number(data_chunk[0][1])
+                for row in range(1, row_size):
+                    self.parse_dim_info(dims_dict, data_chunk[row][0])
+                    for col in range(1, col_size):
+                        self.parse_dim_info(dims_dict, data_chunk[0][col])
+                        cell_value = self.process_number(data_chunk[row][col])
+                        index_values = tuple([dims_dict.get(dim) for dim in dims])
+                        P[index][index_values] = cell_value
+        return (idx, P)
