@@ -1,54 +1,44 @@
+import pyomo.environ
 import os
-import itertools
-from pyomo.environ import *
-irange = lambda start, end: range(start, end+1)
 
-current_dir = os.path.split(os.path.abspath(__file__))[0]
+model = pyomo.environ.ConcreteModel()
+
+model.market = pyomo.environ.Set(initialize=['market'])
+
+model.ask_price = pyomo.environ.Param(model.market, initialize={'market' : 12})
+model.bid_price = pyomo.environ.Param(model.market, initialize={'market' : 10})
+model.ask_liquidity = pyomo.environ.Param(model.market, initialize={'market' : 100})
+model.bid_liquidity = pyomo.environ.Param(model.market, initialize={'market' : 100})
+
+model.VOLUME_BUY = pyomo.environ.Var(model.market, within = pyomo.environ.NonNegativeReals)
+model.VOLUME_SELL = pyomo.environ.Var(model.market, within = pyomo.environ.NonNegativeReals)
+
+def max_buy(model, market):
+    return model.VOLUME_BUY[market] <= model.ask_liquidity[market]
+
+model.max_buy_equation = pyomo.environ.Constraint(model.market, rule=max_buy)
+
+def max_sell(model, market):
+    return model.VOLUME_SELL[market] <= model.bid_liquidity[market]
+
+model.max_sell_equation = pyomo.environ.Constraint(model.market, rule=max_sell)
+
+def objective_component1(model):
+    return sum(model.VOLUME_BUY[market] * model.ask_price[market] for market in model.market)
+
+model.obj_component1 = pyomo.environ.Expression(rule=objective_component1)
+
+def objective_component2(model):
+    return - sum(model.VOLUME_SELL[market] * model.bid_price[market] for market in model.market)
+
+model.obj_component2 = pyomo.environ.Expression(rule=objective_component2)
+model.objective = pyomo.environ.Objective(expr=model.obj_component1 + model.obj_component2, sense=-1)
+
 solver_name = "bonmin"
-solver_path = current_dir + r"\..\solvers\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe"
-
-
-index_max = {
-    "i" : 3,
-    "k" : 4,
-    "j" : 7,
-    "t" : 7,
-    "f" : 2,
-    "w" : 3,
-    "r" : 4,
-}
-import random
-def random_float(min=0.5, max=9.5):
-    return random.uniform(min, max)
-
-def init_ndim_array(dimensions, default=None):
-    if type(dimensions) is not list or len(dimensions) <= 0: return default
-    else: return init_ndim_array(dimensions, default=[default]*dimensions.pop())
-
-SP_jt = init_ndim_array([index_max["j"], index_max["t"]])
-ORDER_jrt = init_ndim_array([index_max["j"], index_max["r"], index_max["t"]])
-LOST_jrt = init_ndim_array([index_max["j"], index_max["r"], index_max["t"]])
-for j in range(index_max["j"]):
-    for t in range(index_max["t"]):
-        SP_jt[j][t] = random_float()
-        for r in range(index_max["r"]):
-            ORDER_jrt[j][r][t] = random_float()
-            LOST_jrt[j][r][t] = random_float()
-
-
-## ===
-a, b, c = 370, 420, 1
-model             = ConcreteModel()
-model.x           = Var([1,2], domain=Binary)
-model.y           = Var([1,2], domain=Binary)
-model.Objective   = Objective(expr = a * model.x[1] + b * model.x[2] + (a-b)*model.y[1] + (a+b)*model.y[2], sense=maximize)
-model.Constraint1 = Constraint(expr = model.x[1] + model.x[2] + model.y[1] + model.y[2] <= c)
-## ===
-
+solver_path = os.path.split(os.path.abspath(__file__))[0] + r"\..\solvers\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe"
 print("Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
-opt = SolverFactory(solver_name, executable=solver_path)
+opt = pyomo.environ.SolverFactory(solver_name, executable=solver_path)
 results = opt.solve(model)
-
 print("Print values for all variables")
-for v in model.component_data_objects(Var):
-  print(str(v), v.value)
+for v in model.component_data_objects(pyomo.environ.Var):
+    print(str(v), v.value)

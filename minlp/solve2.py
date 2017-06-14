@@ -1,5 +1,6 @@
 from xlsx_reader import XLSXReader
 from pyomo.environ import *
+from pyomo.dae import *
 import os
 import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
 #import code; code.interact(local=locals())
@@ -45,10 +46,32 @@ model.QW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=Boolean)
 model.QF_kft = Var(idx["k"], idx["f"], idx["t"], domain=Boolean)
 model.OFFER_jt = Var(idx["j"], idx["t"], domain=Boolean)
 
+## >> CONSTRAINTS LIST?
+
+## >> OBJECTIVE
+def ObjectiveRule(model):
+    return sum(
+        for t in idx["t"] )
+model.Objective = Objective(rule=ObjectiveRule, sense=maximize)
+
+# =====================
+a, b, c = 370, 420, 4
+
+def ObjRule(model):
+    return a * model.x[1] + b * model.x[2] + (a-b)*model.y[1] + (a+b)*model.y[2]
+
+model             = ConcreteModel()
+model.x           = Var([1,2], domain=Binary)
+model.y           = Var([1,2], domain=Binary)
+model.Constraint1 = Constraint(expr = model.x[1] + model.x[2] + model.y[1] + model.y[2] <= c)
+model.Objective = Objective(rule=ObjRule, sense=maximize)
+
 print("Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)
 results = opt.solve(model)
 
 print("Print values for all variables")
 for v in model.component_data_objects(Var):
-  print(str(v), v.value)
+    print(str(v), v.value)
+
+import code; code.interact(local=locals())
