@@ -1,5 +1,4 @@
 import openpyxl
-import os
 
 
 class XLSXReader:
@@ -11,7 +10,7 @@ class XLSXReader:
     decimal_precision = 16
     none_index = lambda array: array.index(None) if None in array else None
 
-    def __init__(self, xlsx_path="{}\\Parameters.xlsx".format(os.path.split(os.path.abspath(__file__))[0])):
+    def __init__(self, xlsx_path):
         self.round_places = self.decimal_precision-1
         self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(xlsx_path, data_only=True))
 
@@ -54,8 +53,7 @@ class XLSXReader:
                 P[index] = {}
                 dims_dict = {}
                 for dim_info in appended_dims_info: self.parse_dim_info(dims_dict, dim_info)
-                splitted_index = index.split(self.dims_delimiter)
-                dims = tuple(splitted_index[1]) if len(splitted_index) == 2 else []
+                dims = self.get_dims(index)
                 row_size = len(data_chunk[:XLSXReader.none_index(data_chunk)])  # gets rid of None rows
                 col_size = len(data_chunk[-1][:XLSXReader.none_index(data_chunk[-1])])  # gets rid of None columns
                 if row_size == 1: P[index] = self.process_number(data_chunk[0][1])
@@ -64,6 +62,15 @@ class XLSXReader:
                     for col in range(1, col_size):
                         self.parse_dim_info(dims_dict, data_chunk[0][col])
                         cell_value = self.process_number(data_chunk[row][col])
-                        index_values = tuple([dims_dict.get(dim) for dim in dims])
+                        index_values = tuple([int(dims_dict.get(dim)) for dim in dims])
                         P[index][index_values] = cell_value
         return (idx, P)
+
+    def get_dims(self, name):
+        splitted = name.split(self.dims_delimiter)
+        return tuple(splitted[1]) if len(splitted) == 2 else []
+
+    def get_idx(self, name, idx):
+        dims = self.get_dims(name)
+        return tuple([(idx.get(dim.lower())) for dim in dims])
+

@@ -42,3 +42,5 @@ results = opt.solve(model)
 print("Print values for all variables")
 for v in model.component_data_objects(pyomo.environ.Var):
     print(str(v), v.value)
+for v in model.component_data_objects(pyomo.environ.Param):
+    print(str(v), v.items())
