@@ -41,7 +41,7 @@ class XLSXReader:
         dims_dict[dim_index] = dim_value
 
     def process_number(self, number):
-        return round(number, self.round_places)
+        return round(float(number), self.round_places)
 
     def extract_idxParams(self):
         P = {}
@@ -50,7 +50,7 @@ class XLSXReader:
             if data_chunk[0][0] == self.index_keyword: idx = self.init_idx(data_chunk)
             else:
                 index, *appended_dims_info = data_chunk[0][0].split(self.info_delimiter)
-                P[index] = {}
+                if not P.get(index): P[index] = {}
                 dims_dict = {}
                 for dim_info in appended_dims_info: self.parse_dim_info(dims_dict, dim_info)
                 dims = self.get_dims(index)
