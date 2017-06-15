@@ -65,56 +65,133 @@ model.QF_kft = Var(idx["k"], idx["f"], idx["t"], domain=Boolean)
 model.OFFER_jt = Var(idx["j"], idx["t"], domain=Boolean)
 
 ## >> CONSTRAINTS model.constraints = ConstraintList()
-def C451a(model, i, f, t): return model.BEGINVF_jft[i,f,t] == model.ENDINVF_jft[i,f,t] 
+def C451a(model, i, f, t): 
+    return model.BEGINVF_jft[i,f,t] == model.ENDINVF_jft[i,f,t] 
 model.C451a = Constraint(idx["i"], idx["f"], idx["t"], rule=C451a)
 
-def C451b(model, i, f): return model.BEGINVF_jft[i,f,1] == model.INITIALINVF_if[i,f]
+def C451b(model, i, f): 
+    return model.BEGINVF_jft[i,f,1] == model.INITIALINVF_if[i,f]
 model.C451b = Constraint(idx["i"], idx["f"], rule=C451b)
 
-def C452a(model, i, w, t): return model.BEGINVW_jwt[i,w,t] == model.ENDINVW_jwt[i,w,t-1] + sum(model.UTFW_jfwt[i,f,w,t-model.x_fw[f,w]] for f in idx["f"] if t > model.x_fw[f,w]) 
+def C452a(model, i, w, t): 
+    return model.BEGINVW_jwt[i,w,t] == model.ENDINVW_jwt[i,w,t-1] + sum(model.UTFW_jfwt[i,f,w,t-model.x_fw[f,w]] for f in idx["f"] if t > model.x_fw[f,w]) 
 model.C452a = Constraint(idx["i"], idx["w"], [t for t in idx["t"] if t > 1], rule=C452a)
 
-def C452b(model, i, w): return model.BEGINVW_jwt[i,w,1] == model.INITIALINVW_iw[i,w]
+def C452b(model, i, w): 
+    return model.BEGINVW_jwt[i,w,1] == model.INITIALINVW_iw[i,w]
 model.C452b = Constraint(idx["i"], idx["w"], rule=C452b)
 
-def C453(model, k, f, t): return model.BEGINVF_jft[k,f,t] == model.ENDINVF_jft[k,f,t-1]
+def C453(model, k, f, t): 
+    return model.BEGINVF_jft[k,f,t] == model.ENDINVF_jft[k,f,t-1]
 model.C453 = Constraint(idx["k"], idx["f"], [t for t in idx["t"] if t > 1], rule=C453)
 
-def C454(model, k, w, t): return model.BEGINVW_jwt[k,w,t] == model.ENDINVW_jwt[k,w,t-1] + sum(model.UTFW_jfwt[k,f,w,t-model.x_fw[f,w]] for f in idx["f"] if t > model.x_fw[f,w]) 
+def C454(model, k, w, t): 
+    return model.BEGINVW_jwt[k,w,t] == model.ENDINVW_jwt[k,w,t-1] + sum(model.UTFW_jfwt[k,f,w,t-model.x_fw[f,w]] for f in idx["f"] if t > model.x_fw[f,w]) 
 model.C454 = Constraint(idx["k"], idx["w"], [t for t in idx["t"] if t > 1], rule=C454)
 
-def C455(model, i, f, t): return model.P_ift[i,f,t] <= model.PCAP_if[i,f]
+def C455(model, i, f, t): 
+    return model.P_ift[i,f,t] <= model.PCAP_if[i,f]
 model.C455 = Constraint(idx["i"], idx["f"], idx["t"], rule=C455)
 
-def C456(model, f, t): return sum(model.BEGINVF_jft[j,f,t] / model.ST_j[j] for j in idx["j"]) <= model.ICAP_f[f]
+def C456(model, f, t): 
+    return sum(model.BEGINVF_jft[j,f,t] / model.ST_j[j] for j in idx["j"]) <= model.ICAP_f[f]
 model.C456 = Constraint(idx["f"], idx["t"], rule=C456)
 
-def C457(model, w, t): return sum(model.BEGINVW_jwt[j,w,t] / model.ST_j[j] for j in idx["j"]) <= model.WCAP_w[w]
+def C457(model, w, t): 
+    return sum(model.BEGINVW_jwt[j,w,t] / model.ST_j[j] for j in idx["j"]) <= model.WCAP_w[w]
 model.C457 = Constraint(idx["w"], idx["t"], rule=C457)
 
-def C458(model, j, f, t): return sum(model.UTFW_jfwt[j,f,w,t] for w in idx["w"]) + sum(model.UTFR_jfrt[j,f,r,t] for r in idx["r"]) <= model.BEGINVF_jft[j,f,t]
+def C458(model, j, f, t): 
+    return sum(model.UTFW_jfwt[j,f,w,t] for w in idx["w"]) + sum(model.UTFR_jfrt[j,f,r,t] for r in idx["r"]) <= model.BEGINVF_jft[j,f,t]
 model.C458 = Constraint(idx["j"], idx["f"], idx["t"], rule=C458)
 
-def C459(model, j, w, t): return sum(model.UTWR_jwrt[j,w,r,t] for r in idx["r"]) <= model.BEGINVW_jwt[j,w,t]
+def C459(model, j, w, t): 
+    return sum(model.UTWR_jwrt[j,w,r,t] for r in idx["r"]) <= model.BEGINVW_jwt[j,w,t]
 model.C459 = Constraint(idx["j"], idx["w"], idx["t"], rule=C459)
 
-def C4510(model, i, k, f, t): return model.BUF_kft[k,f,t] <= model.BEGINVF_jft[i,f,t] - sum(model.UTFW_jfwt[i,f,w,t] for w in idx["w"]) - sum(model.UTFR_jfrt[i,f,r,t] for r in idx["r"]) + model.M * (1 - model.Y_ij[i,k])
+def C4510(model, i, k, f, t): 
+    return model.BUF_kft[k,f,t] <= model.BEGINVF_jft[i,f,t] - sum(model.UTFW_jfwt[i,f,w,t] for w in idx["w"]) - sum(model.UTFR_jfrt[i,f,r,t] for r in idx["r"]) + model.M * (1 - model.Y_ij[i,k])
 model.C4510 = Constraint(idx["i"], idx["k"], idx["f"], idx["t"], rule=C4510)
 
-def C4511(model, i, k, w, t): return model.BUW_kwt[k,w,t] <= model.BEGINVW_jwt[i,w,t] - sum(model.UTWR_jwrt[i,w,r,t] for r in idx["r"]) + model.M * (1 - model.Y_ij[i,k])
+def C4511(model, i, k, w, t): 
+    return model.BUW_kwt[k,w,t] <= model.BEGINVW_jwt[i,w,t] - sum(model.UTWR_jwrt[i,w,r,t] for r in idx["r"]) + model.M * (1 - model.Y_ij[i,k])
 model.C4511 = Constraint(idx["i"], idx["k"], idx["w"], idx["t"], rule=C4511)
 
-def C4512(model, k, f, t): return model.BUF_kft[k,f,t] <= model.BCAPF_kf[k,f]
+def C4512(model, k, f, t): 
+    return model.BUF_kft[k,f,t] <= model.BCAPF_kf[k,f]
 model.C4512 = Constraint(idx["k"], idx["f"], idx["t"], rule=C4512)
 
-def C4513(model, k, w, t): return model.BUW_kwt[k,w,t] <= model.BCAPW_kw[k,w]
+def C4513(model, k, w, t): 
+    return model.BUW_kwt[k,w,t] <= model.BCAPW_kw[k,w]
 model.C4513 = Constraint(idx["k"], idx["w"], idx["t"], rule=C4513)
 
-def C4514a(model, k, f, t): return model.BUF_kft[k,f,t] <= model.M * model.BSUF_kft[k,f,t]
+def C4514a(model, k, f, t): 
+    return model.BUF_kft[k,f,t] <= model.M * model.BSUF_kft[k,f,t]
 model.C4514a = Constraint(idx["k"], idx["f"], idx["t"], rule=C4514a)
 
-def C4514b(model, k, f, t): return model.BUF_kft[k,f,t] >= model.M * (1 - model.BSUF_kft[k,f,t])
+def C4514b(model, k, f, t): 
+    return model.BUF_kft[k,f,t] >= model.M * (1 - model.BSUF_kft[k,f,t])
 model.C4514b = Constraint(idx["k"], idx["f"], idx["t"], rule=C4514b)
+
+def C4515a(model, k, w, t): 
+    return model.BUW_kwt[k,w,t] <= model.M * model.BSUW_kwt[k,w,t]
+model.C4515a = Constraint(idx["k"], idx["w"], idx["t"], rule=C4515a)
+
+def C4515b(model, k, w, t): 
+    return model.BUW_kwt[k,w,t] >= model.M * (1 - model.BSUW_kwt[k,w,t])
+model.C4515b = Constraint(idx["k"], idx["w"], idx["t"], rule=C4515b)
+
+def CS4516a(model, k, f, t): 
+    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) <= 1 + model.M * (1 - model.INTROBF_kft[k,f,t])
+model.CS4516a = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516a)
+
+def CS4516b(model, k, f, t): 
+    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) >= 2 * model.QF_kft[k,f,t] - model.M * (1 - model.INTROBF_kft[k,f,t])
+model.CS4516b = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516b)
+
+def CS4516c(model, k, f, t): 
+    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) >= model.QF_kft[k,f,t]
+model.CS4516c = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516c)
+
+def CS4516d(model, k, f, t): 
+    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) <= model.M * model.QF_kft[k,f,t]
+model.CS4516d = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516d)
+
+def CS4516e(model, k, f, t): 
+    return model.QF_kft[k,f,t] >= model.INTROBF_kft[k,f,t]
+model.CS4516e = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516e)
+
+def CS4517a(model, k, w, t): 
+    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) <= 1 + model.M * (1 - model.INTROBW_kwt[k,w,t])
+model.CS4517a = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517a)
+
+def CS4517b(model, k, w, t): 
+    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) >= 2 * model.QW_kwt[k,w,t] - model.M * (1 - model.INTROBW_kwt[k,w,t])
+model.CS4517b = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517b)
+
+def CS4517c(model, k, w, t): 
+    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) >= model.QW_kwt[k,w,t]
+model.CS4517c = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517c)
+
+def CS4517d(model, k, w, t): 
+    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) <= model.M * model.QW_kwt[k,w,t]
+model.CS4517d = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517d)
+
+def CS4517e(model, k, w, t): 
+    return model.QW_kwt[k,w,t] >= model.INTROBW_kwt[k,w,t]
+model.CS4517e = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517e)
+
+def CS4518(model, k, f): 
+    expr_sum = sum(model.INTROBF_kft[k,f,t] for t in idx["t"])
+    return model.INTROBINCURF_kf[k,f] == base.expr.Expr_if(IF=(expr_sum > 1), THEN=(expr_sum), ELSE=(1))
+model.CS4518 = Constraint(idx["k"], idx["f"], rule=CS4518)
+
+def CS4519(model, k, w): 
+    expr_sum = sum(model.INTROBW_kwt[k,w,t] for t in idx["t"])
+    return model.INTROBINCURW_kw[k,w] == base.expr.Expr_if(IF=(expr_sum > 1), THEN=(expr_sum), ELSE=(1))
+model.CS4519 = Constraint(idx["k"], idx["w"], rule=CS4519)
+
+
 
 ## >> OBJECTIVE
 def OR1(model): return sum(model.SP_jt[j,t] * model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) \
