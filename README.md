@@ -7,8 +7,6 @@
 
 
 ###  SNIPPETS ###
-import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
-import code; code.interact(local=locals())
 
 https://static1.squarespace.com/static/5492d7f4e4b00040889988bd/t/57bd0f93d482e927298cc9da/1472008085561/3_PyomoFundamentals.pdf
 
@@ -16,4 +14,4 @@ http://www.springer.com/cda/content/document/cda_downloaddocument/9781461432258-
 
 https://software.sandia.gov/downloads/pub/pyomo/PyomoOnlineDocs.html#_parameters
 
-https://books.google.com.ph/books?id=P4olDwAAQBAJ&pg=PA215&lpg=PA215&dq=pyomo+%22ConcreteModel()%22&source=bl&ots=JBpDd5ddMb&sig=IJKPXV78oS464y1QpVJyX-dr4Os&hl=en&sa=X&redir_esc=y#v=onepage&q=pyomo%20%22ConcreteModel()%22&f=false
+https://projects.coin-or.org/Bonmin/browser/stable/1.5/Bonmin/doc/BONMIN_UsersManual.pdf?format=raw

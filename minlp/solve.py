@@ -37,10 +37,8 @@ model.objective = pyomo.environ.Objective(expr=model.obj_component1 + model.obj_
 solver_name = "bonmin"
 solver_path = os.path.split(os.path.abspath(__file__))[0] + r"\..\solvers\CoinAll-1.6.0-win64-intel11.1\bin\bonmin.exe"
 print("Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
-opt = pyomo.environ.SolverFactory(solver_name, executable=solver_path)
-results = opt.solve(model)
+optimizer = pyomo.environ.SolverFactory(solver_name, executable=solver_path)
+results = optimizer.solve(model, tee=True)
 print("Print values for all variables")
 for v in model.component_data_objects(pyomo.environ.Var):
     print(str(v), v.value)
-for v in model.component_data_objects(pyomo.environ.Param):
-    print(str(v), v.items())
