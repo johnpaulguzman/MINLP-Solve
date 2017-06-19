@@ -332,8 +332,8 @@ print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PA
 opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
 opt.options["wantsol"] = 1
 opt.options["output_file"] = "{}\\output.txt".format(current_dir)
-opt.options["max_iter"] = 5000
-opt.options["bonmin.algorithm"] = "B-Hyb" 
+opt.options["max_iter"] = 6000
+#opt.options["bonmin.algorithm"] = "B-Hyb" 
 #opt.options["bonmin.allowable_fraction_gap"] = 0.5
 try:
     results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
