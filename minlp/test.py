@@ -6,7 +6,7 @@ import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
 #import code; code.interact(local=locals())
 
 def PyomoMin(a, b):
-    return base.expr.Expr_if(IF=(a > b), THEN=(a), ELSE=(b))
+    return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
 
 def SafeIdx(item, *index_set, default=0):
     #if index_set not in item.index_set(): print("<Did guard {} with index {}".format(item.name, index_set))
@@ -19,7 +19,6 @@ def SafeIdx2(item, index_set):
 current_dir = os.path.split(os.path.abspath(__file__))[0]
 solver_name = "bonmin"
 solver_path = "{}\\..\\solvers\\CoinAll-1.6.0-win64-intel11.1\\bin\\bonmin.exe".format(current_dir)
-solver_io = 'nl'
 
 model = ConcreteModel()
 model.x1 = Var(domain=PositiveIntegers)
@@ -32,16 +31,23 @@ model.max_price = Param(initialize=20)
 
 model.Objective = Objective(expr=model.x1*model.x2 - model.c*model.x1, sense=maximize)
 
+
+model.time = ContinuousSet(bounds=(0,10))
+model.xx = Var(model.time)
+def _intX(m,i):
+    return model.xx[i]**2
+model.intX = Integral(model.time,wrt=model.time,rule=_intX)
+
 def C1(model): 
     return model.x1 <= model.supply
 model.C1 = Constraint(rule=C1)
 
 def C2(model): 
-    return model.x2 <= model.max_price
+    return model.x2 <= model.intX
 model.C2 = Constraint(rule=C2)
 
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
-opt = SolverFactory(solver_name, executable=solver_path, solver_io=solver_io)
+opt = SolverFactory(solver_name, executable=solver_path)
 opt.options["print_level"] = 12
 opt.options["wantsol"] = 1
 results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True, symbolic_solver_labels=True)
@@ -65,5 +71,7 @@ def print_value_sx(array, padding=32, line_size=5):  # TODO generalize to all mo
 print("Printing values for all variables")
 print_value_s(model.component_data_objects(pyomo.environ.Var))
 results.write()
+
+model.intX.display() # CONTINUE
 
 import code; code.interact(local=locals())

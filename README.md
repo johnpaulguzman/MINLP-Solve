@@ -7,6 +7,7 @@
 
 
 ###  SNIPPETS ###
+https://github.com/Pyomo/pyomo/blob/master/doc/GettingStarted/current/dae.txt
 
 https://static1.squarespace.com/static/5492d7f4e4b00040889988bd/t/57bd0f93d482e927298cc9da/1472008085561/3_PyomoFundamentals.pdf
 

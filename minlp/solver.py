@@ -2,20 +2,23 @@ from xlsx_reader import XLSXReader
 from pyomo.environ import *
 from pyomo.dae import *
 import os
+from time import time
 import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
 #import code; code.interact(local=locals())
+start_time = time()
 
 def PyomoMin(a, b):
-    return base.expr.Expr_if(IF=(a > b), THEN=(a), ELSE=(b))
+    return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
 
 def SafeIdx(item, *index_set, default=0):
-    #if index_set not in item.index_set(): print("<Did guard {} with index {}".format(item.name, index_set))
     return item[index_set] if index_set in item.index_set() else default
+
+def PreSafeIdx(array, remove_leq=1):
+    return [item for item in array if item > remove_leq]
 
 current_dir = os.path.split(os.path.abspath(__file__))[0]
 solver_name = "bonmin"
 solver_path = "{}\\..\\solvers\\CoinAll-1.6.0-win64-intel11.1\\bin\\bonmin.exe".format(current_dir)
-#solver_io = 'nl'
 input_path = "{}\\test.xlsx".format(current_dir)
 input_reader = XLSXReader(input_path)
 idx, params = input_reader.extract_idxParams()
@@ -35,26 +38,26 @@ for name, value in params.items():
 ## >> VARIABLES 
 
 #  DECISION VARIABLES
-model.P_ift = Var(idx["i"], idx["f"], idx["t"], domain=PositiveIntegers)
-model.UTFW_jfwt = Var(idx["j"], idx["f"], idx["w"], idx["t"], domain=PositiveIntegers)
-model.UTFR_jfrt = Var(idx["j"], idx["f"], idx["r"], idx["t"], domain=PositiveIntegers)
-model.UTWR_jwrt = Var(idx["j"], idx["w"], idx["r"], idx["t"], domain=PositiveIntegers)
-model.BUW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=PositiveIntegers)
-model.BUF_kft = Var(idx["k"], idx["f"], idx["t"], domain=PositiveIntegers)
-model.ALLOC_ijt = Var(idx["i"], idx["j"], idx["t"], domain=PositiveIntegers)
-model.SP_jt = Var(idx["j"], idx["t"], domain=PositiveReals)
+model.P_ift = Var(idx["i"], idx["f"], idx["t"], domain=NonNegativeIntegers)
+model.UTFW_jfwt = Var(idx["j"], idx["f"], idx["w"], idx["t"], domain=NonNegativeIntegers)
+model.UTFR_jfrt = Var(idx["j"], idx["f"], idx["r"], idx["t"], domain=NonNegativeIntegers)
+model.UTWR_jwrt = Var(idx["j"], idx["w"], idx["r"], idx["t"], domain=NonNegativeIntegers)
+model.BUW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=NonNegativeIntegers)
+model.BUF_kft = Var(idx["k"], idx["f"], idx["t"], domain=NonNegativeIntegers)
+model.ALLOC_ijt = Var(idx["i"], idx["j"], idx["t"], domain=NonNegativeIntegers)
+model.SP_jt = Var(idx["j"], idx["t"], domain=NonNegativeReals)
 
 #  SYSTEM VARIABLES
-model.BEGINVF_jft = Var(idx["j"], idx["f"], idx["t"], domain=PositiveIntegers)
-model.BEGINVW_jwt = Var(idx["j"], idx["w"], idx["t"], domain=PositiveIntegers)
-model.ENDINVF_jft = Var(idx["j"], idx["f"], idx["t"], domain=PositiveIntegers)
-model.ENDINVW_jwt = Var(idx["j"], idx["w"], idx["t"], domain=PositiveIntegers)
-model.SPR_jt = Var(idx["j"], idx["t"], domain=PositiveReals)
-model.ORDER_jrt = Var(idx["j"], idx["r"], idx["t"], domain=PositiveIntegers)
-model.CUMORDER_jt = Var(idx["j"], idx["t"], domain=PositiveIntegers)
-model.D_jrt = Var(idx["j"], idx["r"], idx["t"], domain=PositiveReals)
-model.PC_ift = Var(idx["i"], idx["f"], idx["t"], domain=PositiveIntegers)
-model.BACKORDER_jrt = Var(idx["j"], idx["r"], idx["t"], domain=PositiveReals)
+model.BEGINVF_jft = Var(idx["j"], idx["f"], idx["t"], domain=NonNegativeIntegers)
+model.BEGINVW_jwt = Var(idx["j"], idx["w"], idx["t"], domain=NonNegativeIntegers)
+model.ENDINVF_jft = Var(idx["j"], idx["f"], idx["t"], domain=NonNegativeIntegers)
+model.ENDINVW_jwt = Var(idx["j"], idx["w"], idx["t"], domain=NonNegativeIntegers)
+model.SPR_jt = Var(idx["j"], idx["t"], domain=NonNegativeReals)
+model.ORDER_jrt = Var(idx["j"], idx["r"], idx["t"], domain=NonNegativeIntegers)
+model.CUMORDER_jt = Var(idx["j"], idx["t"], domain=NonNegativeIntegers)
+model.D_jrt = Var(idx["j"], idx["r"], idx["t"], domain=NonNegativeReals)
+model.PC_ift = Var(idx["i"], idx["f"], idx["t"], domain=NonNegativeIntegers)
+model.BACKORDER_jrt = Var(idx["j"], idx["r"], idx["t"], domain=NonNegativeReals)
 
 #  BINARY VARIABLES
 model.BSUW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=Boolean)
@@ -73,7 +76,8 @@ model.OFFER_jt = Var(idx["j"], idx["t"], domain=Boolean)
 
 
 ## >> OBJECTIVE
-model.Objective = Objective(expr=sum(model.SP_jt[j,t] * model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) for t in idx["t"] for r in idx["r"] for j in idx["j"])\
+model.Objective = Objective(expr=\
+    sum(model.SP_jt[j,t] * model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) for t in idx["t"] for r in idx["r"] for j in idx["j"])\
     -sum(model.P_ift[i,f,t] * model.PC_ift[i,f,t] for t in idx["t"] for f in idx["f"] for i in idx["i"])\
     -sum(model.ENDINVF_jft[j,f,t] * model.ICF_jf[j,f] for t in idx["t"] for f in idx["f"] for j in idx["j"])\
     -sum(model.ENDINVW_jwt[j,w,t] * model.ICW_jw[j,w] for t in idx["t"] for w in idx["w"] for j in idx["j"])\
@@ -91,15 +95,16 @@ model.Objective = Objective(expr=sum(model.SP_jt[j,t] * model.ORDER_jrt[j,r,t] *
 
 ## >> CONSTRAINTS
 def C451a(model, i, f, t): 
-    return model.BEGINVF_jft[i,f,t] == model.ENDINVF_jft[i,f,t] 
-model.C451a = Constraint(idx["i"], idx["f"], idx["t"], rule=C451a)
+    return model.BEGINVF_jft[i,f,t] == model.ENDINVF_jft[i,f,t-1] 
+model.C451a = Constraint(idx["i"], idx["f"], PreSafeIdx(idx["t"]), rule=C451a)
 
 def C451b(model, i, f): 
     return model.BEGINVF_jft[i,f,1] == model.INITIALINVF_if[i,f]
 model.C451b = Constraint(idx["i"], idx["f"], rule=C451b)
 
-def C452a(model, i, w, t): return model.BEGINVW_jwt[i,w,t] == SafeIdx(model.ENDINVW_jwt, i,w,t-1)
-model.C452a = Constraint(idx["i"], idx["w"], idx["t"], rule=C452a)
+def C452a(model, i, w, t): 
+    return model.BEGINVW_jwt[i,w,t] == model.ENDINVW_jwt[i,w,t-1] + sum(SafeIdx(model.UTFW_jfwt, i,f,w,t-model.x_fw[f,w]) for f in idx["f"])
+model.C452a = Constraint(idx["i"], idx["w"], PreSafeIdx(idx["t"]), rule=C452a)
 
 def C452b(model, i, w): 
     return model.BEGINVW_jwt[i,w,1] == model.INITIALINVW_iw[i,w]
@@ -154,7 +159,7 @@ def C4514a(model, k, f, t):
 model.C4514a = Constraint(idx["k"], idx["f"], idx["t"], rule=C4514a)
 
 def C4514b(model, k, f, t): 
-    return model.BUF_kft[k,f,t] >= model.M * (1 - model.BSUF_kft[k,f,t])
+    return model.BUF_kft[k,f,t] >= 1 - model.M * (1 - model.BSUF_kft[k,f,t])
 model.C4514b = Constraint(idx["k"], idx["f"], idx["t"], rule=C4514b)
 
 def C4515a(model, k, w, t): 
@@ -162,7 +167,7 @@ def C4515a(model, k, w, t):
 model.C4515a = Constraint(idx["k"], idx["w"], idx["t"], rule=C4515a)
 
 def C4515b(model, k, w, t): 
-    return model.BUW_kwt[k,w,t] >= model.M * (1 - model.BSUW_kwt[k,w,t])
+    return model.BUW_kwt[k,w,t] >= 1 - model.M * (1 - model.BSUW_kwt[k,w,t])
 model.C4515b = Constraint(idx["k"], idx["w"], idx["t"], rule=C4515b)
 
 def CS4516a(model, k, f, t): 
@@ -170,7 +175,7 @@ def CS4516a(model, k, f, t):
 model.CS4516a = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516a)
 
 def CS4516b(model, k, f, t): 
-    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) >= 2 * model.QF_kft[k,f,t] - model.M * (1 - model.INTROBF_kft[k,f,t])
+    return sum(model.BSUF_kft[k,f,t_i] for t_i in range(1,t+1)) >= 2 * model.QF_kft[k,f,t] - model.M * model.INTROBF_kft[k,f,t]
 model.CS4516b = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4516b)
 
 def CS4516c(model, k, f, t): 
@@ -190,7 +195,7 @@ def CS4517a(model, k, w, t):
 model.CS4517a = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517a)
 
 def CS4517b(model, k, w, t): 
-    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) >= 2 * model.QW_kwt[k,w,t] - model.M * (1 - model.INTROBW_kwt[k,w,t])
+    return sum(model.BSUW_kwt[k,w,t_i] for t_i in range(1,t+1)) >= 2 * model.QW_kwt[k,w,t] - model.M * model.INTROBW_kwt[k,w,t]
 model.CS4517b = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517b)
 
 def CS4517c(model, k, w, t): 
@@ -209,13 +214,132 @@ def CS4518(model, k, f):
     return model.INTROBINCURF_kf[k,f] == PyomoMin(sum(model.INTROBF_kft[k,f,t] for t in idx["t"]), 1)
 model.CS4518 = Constraint(idx["k"], idx["f"], rule=CS4518)
 
+def CS4519(model, k, w): 
+    return model.INTROBINCURW_kw[k,w] == PyomoMin(sum(model.INTROBW_kwt[k,w,t] for t in idx["t"]), 1)
+model.CS4519 = Constraint(idx["k"], idx["w"], rule=CS4519)
+
+def CS4520a(model, k, f, t): 
+    return model.BSUF_kft[k,f,t] >= model.SETUPF_kft[k,f,t]
+model.CS4520a = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4520a)
+
+def CS4520b(model, k, f, t): 
+    return SafeIdx(model.BSUF_kft, k,f,t-1) <= model.M * (1 - model.SETUPF_kft[k,f,t])
+model.CS4520b = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4520b)
+
+def CS4520c(model, k, f, t): 
+    return SafeIdx(model.BSUF_kft, k,f,t-1) >= model.BSUF_kft[k,f,t] - model.M * model.SETUPF_kft[k,f,t]
+model.CS4520c = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4520c)
+
+def CS4521a(model, k, w, t): 
+    return model.BSUW_kwt[k,w,t] >= model.SETUPW_kwt[k,w,t]
+model.CS4521a = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4521a)
+
+def CS4521b(model, k, w, t): 
+    return SafeIdx(model.BSUW_kwt, k,w,t-1) <= model.M * (1 - model.SETUPW_kwt[k,w,t])
+model.CS4521b = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4521b)
+
+def CS4521c(model, k, w, t): 
+    return SafeIdx(model.BSUW_kwt, k,w,t-1) >= model.BSUW_kwt[k,w,t] - model.M * model.SETUPW_kwt[k,w,t]
+model.CS4521c = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4521c)
+
+def CS4522(model, i, f, t): 
+    return model.ENDINVF_jft[i,f,t] == model.BEGINVF_jft[i,f,t] + model.P_ift[i,f,t] - sum(model.UTFW_jfwt[i,f,w,t] for w in idx["w"]) - sum(model.UTFR_jfrt[i,f,r,t] for r in idx["r"]) - sum(model.BUF_kft[k,f,t] * model.Y_ij[i,k] for k in idx["k"])
+model.CS4522 = Constraint(idx["i"], idx["f"], idx["t"], rule=CS4522)
+
+def CS4523(model, i, w, t): 
+    return model.ENDINVW_jwt[i,w,t] == model.BEGINVW_jwt[i,w,t] - sum(model.UTWR_jwrt[i,w,r,t] for r in idx["r"]) - sum(model.BUW_kwt[k,w,t] * model.Y_ij[i,k] for k in idx["k"])
+model.CS4523 = Constraint(idx["i"], idx["w"], idx["t"], rule=CS4523)
+
+def CS4524(model, k, f, t): 
+    return model.ENDINVF_jft[k,f,t] == model.BEGINVF_jft[k,f,t] + model.BUF_kft[k,f,t] - sum(model.UTFW_jfwt[k,f,w,t] for w in idx["w"]) - sum(model.UTFR_jfrt[k,f,r,t] for r in idx["r"])
+model.CS4524 = Constraint(idx["k"], idx["f"], idx["t"], rule=CS4524)
+
+def CS4525(model, k, w, t): 
+    return model.ENDINVW_jwt[k,w,t] == model.BEGINVW_jwt[k,w,t] + model.BUW_kwt[k,w,t] - sum(model.UTWR_jwrt[k,w,r,t] for r in idx["r"])
+model.CS4525 = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4525)
+
+def CS4526(model, i, j, t): 
+    return model.ALLOC_ijt[i,j,t] == (sum(model.BEGINVW_jwt[j,w,t] for w in idx["w"]) + sum(model.BEGINVF_jft[j,f,t] for f in idx["f"])) * model.Y_ij[i,j]
+model.CS4526 = Constraint(idx["i"], idx["j"], idx["t"], rule=CS4526)
+
+def CS4527a(model, j, t): 
+    return sum(model.BEGINVF_jft[j,f,t] for f in idx["f"]) + sum(model.BEGINVW_jwt[j,w,t] for w in idx["w"]) <= model.LE1 + model.M * model.OFFER_jt[j,t]
+model.CS4527a = Constraint(idx["j"], idx["t"], rule=CS4527a)
+
+def CS4527b(model, j, t): 
+    return sum(model.BEGINVF_jft[j,f,t] for f in idx["f"]) + sum(model.BEGINVW_jwt[j,w,t] for w in idx["w"]) >= 1 - model.M * (1 - model.OFFER_jt[j,t])
+model.CS4527b = Constraint(idx["j"], idx["t"], rule=CS4527b)
+
+def CS4528a(model, j, r, t): # FAILED
+    return model.ORDER_jrt[j,r,t] <= model.LE1 + model.M * SafeIdx(model.OP_jrt, j,r,t-model.x_r[r])
+model.CS4528a = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4528a)
+
+def CS4528b(model, j, r, t): # FAILED
+    return model.ORDER_jrt[j,r,t] >= 1 - model.M * (1 - SafeIdx(model.OP_jrt, j,r,t-model.x_r[r]))
+model.CS4528b = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4528b)
+
+def CS4528c(model, j, r, t): # FAILED
+    return SafeIdx(model.OP_jrt, j,r,t-model.x_r[r]) >= model.LOST_jrt[j,r,t]
+model.CS4528c = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4528c)
+
+def CS4528d(model, j, r, t): 
+    return SafeIdx(model.OFFER_jt, j,t-model.x_r[r]) <= model.M * (1 - model.LOST_jrt[j,r,t])
+model.CS4528d = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4528d)
+
+def CS4528e(model, j, r, t): # FAILED
+    return SafeIdx(model.OFFER_jt, j,t-model.x_r[r]) >= SafeIdx(model.OP_jrt, j,r,t-model.x_r[r]) - model.M * model.LOST_jrt[j,r,t]
+model.CS4528e = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4528e)
+
+def CS4529(model, j, r, t): 
+    return sum(SafeIdx(model.UTFR_jfrt, j,f,r,t-model.x_fr[f,r]) for f in idx["f"]) + sum(SafeIdx(model.UTWR_jwrt, j,w,r,t-model.x_wr[w,r]) for w in idx["w"]) <= model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) + SafeIdx(model.BACKORDER_jrt, j,r,t-1)
+model.CS4529 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4529)
+
+def CS4530(model, j, r, t): # FAILED
+    return model.BACKORDER_jrt[j,r,t] == model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) + SafeIdx(model.BACKORDER_jrt, j,r,t-1) - sum(SafeIdx(model.UTFR_jfrt, j,f,r,t-model.x_fr[f,r]) for f in idx["f"]) - sum(SafeIdx(model.UTWR_jwrt, j,w,r,t-model.x_wr[w,r]) for w in idx["w"])
+model.CS4530 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4530)
+
+def CS4531(model, j, r, t): # FAILED?
+    if t > model.x_r[r]: return model.ORDER_jrt[j,r,t] == model.D_jrt[j,r,t] - SafeIdx(model.BACKORDER_jrt, j,r,t-1)
+    else: return model.ORDER_jrt[j,r,t] <= model.D_jrt[j,r,t] - SafeIdx(model.BACKORDER_jrt, j,r,t-1)
+model.CS4531 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4531)
+
+def CS4532(model, j, t): # FAILED
+    return model.SP_jt[j,t] <= sum(model.SP_jt[i,t] * model.Y_ij[i,j] for i in idx["i"])
+model.CS4532 = Constraint(idx["j"], idx["t"], rule=CS4532)
+
+def CS4533(model, j, t): # FAILED
+    return model.SPR_jt[j,t] == model.SP_jt[j,t] * (1 + model.MARKUP)
+model.CS4533 = Constraint(idx["j"], idx["t"], rule=CS4533)
+
+def CS4534(model, i, f, t): 
+    return model.PC_ift[i,f,t] == model.VC_if[i,f] + model.FC_if[i,f] / model.P_ift[i,f,t]
+model.CS4534 = Constraint(idx["i"], idx["f"], idx["t"], rule=CS4534)
+
+def CS4535(model, j, t): # FAILED
+    return model.CUMORDER_jt[j,t] == sum(model.ORDER_jrt[j,r,t_i] for t_i in range(1, t+1) for r in idx["r"])
+model.CS4535 = Constraint(idx["j"], idx["t"], rule=CS4535)
+
+def CSTEST1(model, j, r, t): # FAILED
+    return model.D_jrt[j,r,t] <= 1000
+model.CSTEST1 = Constraint(idx["j"], idx["r"], idx["t"], rule=CSTEST1)
+
+def CSTEST2(model, j, t): # FAILED
+    return model.SP_jt[j,t] <= 50
+model.CSTEST2 = Constraint(idx["j"], idx["t"], rule=CSTEST2)
+
 ## >> SOLVE
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
-opt.options["print_level"] = 12
 opt.options["wantsol"] = 1
-results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
-
+opt.options["output_file"] = "{}\\output.txt".format(current_dir)
+opt.options["max_iter"] = 5000
+opt.options["bonmin.algorithm"] = "B-Hyb" 
+#opt.options["bonmin.allowable_fraction_gap"] = 0.5
+try:
+    results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
+except:
+    pass
+end_time = time()
 
 def row_print(array, padding=32, line_size=5):
     for index, item in enumerate(array):
@@ -235,6 +359,8 @@ def print_vars(model):  # TODO generalize to all model components
 
 print("Printing values for all variables")
 print_vars(model)
+print("Time elapsed: {}".format(round(end_time - start_time)))
+#import code; code.interact(local=locals())
 
 #results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()
