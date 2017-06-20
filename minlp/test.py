@@ -31,19 +31,13 @@ model.max_price = Param(initialize=20)
 
 model.Objective = Objective(expr=model.x1*model.x2 - model.c*model.x1, sense=maximize)
 
-
-model.time = ContinuousSet(bounds=(0,10))
-model.xx = Var(model.time)
-def _intX(m,i):
-    return model.xx[i]**2
-model.intX = Integral(model.time,wrt=model.time,rule=_intX)
-
 def C1(model): 
     return model.x1 <= model.supply
 model.C1 = Constraint(rule=C1)
 
+
 def C2(model): 
-    return model.x2 <= model.intX
+    return model.x2**2 <= sqrt(model.max_price)**2
 model.C2 = Constraint(rule=C2)
 
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
@@ -71,7 +65,5 @@ def print_value_sx(array, padding=32, line_size=5):  # TODO generalize to all mo
 print("Printing values for all variables")
 print_value_s(model.component_data_objects(pyomo.environ.Var))
 results.write()
-
-model.intX.display() # CONTINUE
 
 import code; code.interact(local=locals())

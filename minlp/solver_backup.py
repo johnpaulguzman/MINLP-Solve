@@ -330,11 +330,11 @@ model.CSTEST2 = Constraint(idx["j"], idx["t"], rule=CSTEST2)
 ## >> SOLVE
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
-opt.options["bonmin.algorithm"] = "B-Hyb" 
 opt.options["wantsol"] = 1
 opt.options["output_file"] = "{}\\output.txt".format(current_dir)
-opt.options["max_iter"] = 5000
-opt.options["bonmin.allowable_gap"] = 1
+opt.options["max_iter"] = 6000
+#opt.options["bonmin.algorithm"] = "B-Hyb" 
+#opt.options["bonmin.allowable_fraction_gap"] = 0.5
 try:
     results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
 except:
@@ -360,7 +360,7 @@ def print_vars(model):  # TODO generalize to all model components
 print("Printing values for all variables")
 print_vars(model)
 print("Time elapsed: {}".format(round(end_time - start_time)))
-import code; code.interact(local=locals())
+#import code; code.interact(local=locals())
 
 #results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()

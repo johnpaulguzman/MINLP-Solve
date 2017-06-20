@@ -360,7 +360,7 @@ def print_vars(model):  # TODO generalize to all model components
 print("Printing values for all variables")
 print_vars(model)
 print("Time elapsed: {}".format(round(end_time - start_time)))
-#import code; code.interact(local=locals())
+import code; code.interact(local=locals())
 
 #results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()
