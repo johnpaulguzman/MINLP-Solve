@@ -345,6 +345,43 @@ def CS463(model, j, r, t): # TEST
     return model.D_jrt[j,r,t] == model.alpha_jt[j,t] * model.Lambda_rt[r,t]
 model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
 
+
+import sympy as sym
+
+h = 3 # if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
+x, y, z = sym.symbols('x y z', real=True)
+a3, a4, SPR1 = sym.symbols('a3, a4, SPR1', real=True, positive=True)
+
+r = sym.Matrix([ [x, y, z] ])
+mu = sym.Matrix([ [model.RPMean_i[1], model.RPMean_i[2], model.RPMean_i[3]] ])
+sig = sym.Matrix([ [model.Covariance_iI[1,1], model.Covariance_iI[1,2], model.Covariance_iI[1,3]],
+                   [model.Covariance_iI[2,1], model.Covariance_iI[2,2], model.Covariance_iI[2,3]], 
+                   [model.Covariance_iI[3,1], model.Covariance_iI[3,2], model.Covariance_iI[3,3]] ])
+f = sym.exp(1/2 * ((r-mu) * sig.inv() * (r-mu).transpose())[0]) / sym.sqrt((2*sym.pi)**h * sig.det())
+
+f2 = sym.Rational(63493635934241,1000000000000000)*sym.exp(3893/8)*sym.exp(-15*x)*sym.exp(x**2/2)*sym.exp(-17*y/4)*sym.exp(y**2/8)*sym.exp(-52*z)*sym.exp(2*z**2)
+
+gx = sym.exp(-15*x)*sym.exp(x**2/2)
+gy = sym.exp(-17*y/4)*sym.exp(y**2/8)
+gz = sym.exp(-52*z)*sym.exp(2*z**2)
+
+Gx = sym.integrate(sym.powsimp(gx), (x,SPR1, 100))
+Gy = sym.integrate(sym.powsimp(gy), (y,-100, a4))
+Gz = sym.integrate(sym.powsimp(gz), (z,-100, a3))
+
+sym.pprint(Gx)
+sym.pprint(Gy)
+sym.pprint(Gz)
+
+print(Gx.subs(SPR1,6).evalf())
+
+F2 = sym.Rational(63493635934241,1000000000000000)*sym.exp(sym.Rational(3893,8))*Gx*Gy*Gz
+
+sym.pprint(F2)
+sym.pprint(sym.simplify(F2))
+
+
+""" UNCOMMENT LATER
 ## >> SOLVE
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
@@ -365,3 +402,4 @@ import code; code.interact(local=locals())
 
 #results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()
+"""
