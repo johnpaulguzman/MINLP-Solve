@@ -12,17 +12,13 @@ def SafeIdx(item, *index_set, default=0):
     #if index_set not in item.index_set(): print("<Did guard {} with index {}".format(item.name, index_set))
     return item[index_set] if index_set in item.index_set() else default
 
-def SafeIdx2(item, index_set):
-    if index_set in item.index_set(): print("<Did guard2 {} with index {}".format(item.name, index_set))
-    return base.expr.Expr_if(IF=index_set in item.index_set(), THEN=item[index_set], ELSE=0)
-
 current_dir = os.path.split(os.path.abspath(__file__))[0]
 solver_name = "bonmin"
 solver_path = "{}\\..\\solvers\\CoinAll-1.6.0-win64-intel11.1\\bin\\bonmin.exe".format(current_dir)
 
 model = ConcreteModel()
-model.x1 = Var(domain=PositiveIntegers)
-model.x2 = Var(domain=PositiveIntegers)
+model.x1 = Var(domain=PositiveIntegers,initialize=1)
+model.x2 = Var(domain=PositiveIntegers,initialize=1)
 #model.x = Var([1,2], domain=PositiveIntegers)
 
 model.c = Param(initialize=10)
@@ -35,9 +31,16 @@ def C1(model):
     return model.x1 <= model.supply
 model.C1 = Constraint(rule=C1)
 
+def PyomoMinMax(a, b, do_min=True):
+    if do_min: return base.expr.Expr_if(IF=a < b, THEN=a, ELSE=b)
+    else: return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
+
+def MultiMinMax(a, *bs, do_min=True):
+    if bs: return MultiMinMax(PyomoMinMax(a, bs[0], do_min=do_min), *bs[1:], do_min=do_min)
+    else: return a
 
 def C2(model): 
-    return model.x2**2 <= sqrt(model.max_price)**2
+    return model.x2 <= MultiMinMax(model.max_price, 20,21,2000, do_min=True)
 model.C2 = Constraint(rule=C2)
 
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))

@@ -3,12 +3,34 @@ from pyomo.environ import *
 from pyomo.dae import *
 import os
 from time import time
-import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
-#import code; code.interact(local=locals())
-start_time = time()
+import winsound
 
-def PyomoMin(a, b):
-    return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
+
+def beep(): winsound.Beep(300,2000)
+
+def row_print(array, padding=32, line_size=5):
+    for index, item in enumerate(array):
+        end = "\n" if index % line_size == 0 else ""
+        print(("{:<"+str(padding)+"}").format(item), end=end)
+    print()
+
+def print_vars(model):  # TODO generalize to all model components
+    var_list = model.component_data_objects(pyomo.environ.Var)
+    entries = []
+    for item in var_list:
+        if hasattr(item, "value"): value_s = item.value
+        elif hasattr(item, "valeus"): value_s = item.values
+        else: value_s = "No value_s"
+        entries += ["{} = {}".format(str(item), value_s)]
+    row_print(entries)
+
+def PyomoMinMax(a, b, do_min=True):
+    if do_min: return base.expr.Expr_if(IF=a < b, THEN=a, ELSE=b)
+    else: return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
+
+def MultiMinMax(a, *bs, do_min=True):
+    if bs: return MultiMinMax(PyomoMinMax(a, bs.pop(), do_min=do_min), *bs, do_min=do_min)
+    else: return a
 
 def SafeIdx(item, *index_set, default=0):
     return item[index_set] if index_set in item.index_set() else default
@@ -19,7 +41,7 @@ def PreSafeIdx(array, remove_leq=1):
 current_dir = os.path.split(os.path.abspath(__file__))[0]
 solver_name = "bonmin"
 solver_path = "{}\\..\\solvers\\CoinAll-1.6.0-win64-intel11.1\\bin\\bonmin.exe".format(current_dir)
-input_path = "{}\\test.xlsx".format(current_dir)
+input_path = "{}\\Parameters.xlsx".format(current_dir)
 input_reader = XLSXReader(input_path)
 idx, params = input_reader.extract_idxParams()
 model = ConcreteModel()
@@ -45,7 +67,7 @@ model.UTWR_jwrt = Var(idx["j"], idx["w"], idx["r"], idx["t"], domain=NonNegative
 model.BUW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=NonNegativeIntegers)
 model.BUF_kft = Var(idx["k"], idx["f"], idx["t"], domain=NonNegativeIntegers)
 model.ALLOC_ijt = Var(idx["i"], idx["j"], idx["t"], domain=NonNegativeIntegers)
-model.SP_jt = Var(idx["j"], idx["t"], domain=NonNegativeReals)
+#model.SP_jt = Var(idx["j"], idx["t"], domain=NonNegativeReals)
 
 #  SYSTEM VARIABLES
 model.BEGINVF_jft = Var(idx["j"], idx["f"], idx["t"], domain=NonNegativeIntegers)
@@ -74,11 +96,11 @@ model.QW_kwt = Var(idx["k"], idx["w"], idx["t"], domain=Boolean)
 model.QF_kft = Var(idx["k"], idx["f"], idx["t"], domain=Boolean)
 model.OFFER_jt = Var(idx["j"], idx["t"], domain=Boolean)
 
-
 ## >> OBJECTIVE
 model.Objective = Objective(expr=\
     sum(model.SP_jt[j,t] * model.ORDER_jrt[j,r,t] * (1 - model.LOST_jrt[j,r,t]) for t in idx["t"] for r in idx["r"] for j in idx["j"])\
-    -sum(model.P_ift[i,f,t] * model.PC_ift[i,f,t] for t in idx["t"] for f in idx["f"] for i in idx["i"])\
+    #-sum(model.P_ift[i,f,t] * model.PC_ift[i,f,t] for t in idx["t"] for f in idx["f"] for i in idx["i"])\
+    -sum(model.P_ift[i,f,t] * model.VC_if[i,f] + model.FC_if[i,f] for t in idx["t"] for f in idx["f"] for i in idx["i"])\
     -sum(model.ENDINVF_jft[j,f,t] * model.ICF_jf[j,f] for t in idx["t"] for f in idx["f"] for j in idx["j"])\
     -sum(model.ENDINVW_jwt[j,w,t] * model.ICW_jw[j,w] for t in idx["t"] for w in idx["w"] for j in idx["j"])\
     -sum(model.UTFW_jfwt[j,f,w,t] * model.TCFW_jfw[j,f,w] for t in idx["t"] for j in idx["j"] for f in idx["f"] for w in idx["w"])\
@@ -211,11 +233,11 @@ def CS4517e(model, k, w, t):
 model.CS4517e = Constraint(idx["k"], idx["w"], idx["t"], rule=CS4517e)
 
 def CS4518(model, k, f): 
-    return model.INTROBINCURF_kf[k,f] == PyomoMin(sum(model.INTROBF_kft[k,f,t] for t in idx["t"]), 1)
+    return model.INTROBINCURF_kf[k,f] == PyomoMinMax(sum(model.INTROBF_kft[k,f,t] for t in idx["t"]), 1, do_min=True)
 model.CS4518 = Constraint(idx["k"], idx["f"], rule=CS4518)
 
 def CS4519(model, k, w): 
-    return model.INTROBINCURW_kw[k,w] == PyomoMin(sum(model.INTROBW_kwt[k,w,t] for t in idx["t"]), 1)
+    return model.INTROBINCURW_kw[k,w] == PyomoMinMax(sum(model.INTROBW_kwt[k,w,t] for t in idx["t"]), 1, do_min=True)
 model.CS4519 = Constraint(idx["k"], idx["w"], rule=CS4519)
 
 def CS4520a(model, k, f, t): 
@@ -303,60 +325,39 @@ def CS4531(model, j, r, t): # FAILED?
     else: return model.ORDER_jrt[j,r,t] <= model.D_jrt[j,r,t] - SafeIdx(model.BACKORDER_jrt, j,r,t-1)
 model.CS4531 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS4531)
 
-def CS4532(model, j, t): # FAILED
-    return model.SP_jt[j,t] <= sum(model.SP_jt[i,t] * model.Y_ij[i,j] for i in idx["i"])
-model.CS4532 = Constraint(idx["j"], idx["t"], rule=CS4532)
+#def CS4532(model, j, t): # FAILED
+#    return model.SP_jt[j,t] <= sum(model.SP_jt[i,t] * model.Y_ij[i,j] for i in idx["i"])
+#model.CS4532 = Constraint(idx["j"], idx["t"], rule=CS4532)
 
-def CS4533(model, j, t): # FAILED
-    return model.SPR_jt[j,t] == model.SP_jt[j,t] * (1 + model.MARKUP)
-model.CS4533 = Constraint(idx["j"], idx["t"], rule=CS4533)
+#def CS4533(model, j, t): # FAILED
+#    return model.SPR_jt[j,t] == model.SP_jt[j,t] * (1 + model.MARKUP)
+#model.CS4533 = Constraint(idx["j"], idx["t"], rule=CS4533)
 
-def CS4534(model, i, f, t): 
-    return model.PC_ift[i,f,t] == model.VC_if[i,f] + model.FC_if[i,f] / model.P_ift[i,f,t]
-model.CS4534 = Constraint(idx["i"], idx["f"], idx["t"], rule=CS4534)
+#def CS4534(model, i, f, t): 
+#    return model.PC_ift[i,f,t] == model.VC_if[i,f] + model.FC_if[i,f] / model.P_ift[i,f,t]
+#model.CS4534 = Constraint(idx["i"], idx["f"], idx["t"], rule=CS4534)
 
 def CS4535(model, j, t): # FAILED
     return model.CUMORDER_jt[j,t] == sum(model.ORDER_jrt[j,r,t_i] for t_i in range(1, t+1) for r in idx["r"])
 model.CS4535 = Constraint(idx["j"], idx["t"], rule=CS4535)
 
-def CSTEST1(model, j, r, t): # FAILED
-    return model.D_jrt[j,r,t] <= 1000
-model.CSTEST1 = Constraint(idx["j"], idx["r"], idx["t"], rule=CSTEST1)
-
-def CSTEST2(model, j, t): # FAILED
-    return model.SP_jt[j,t] <= 50
-model.CSTEST2 = Constraint(idx["j"], idx["t"], rule=CSTEST2)
+def CS463(model, j, r, t): # TEST
+    return model.D_jrt[j,r,t] == model.alpha_jt[j,t] * model.Lambda_rt[r,t]
+model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
 
 ## >> SOLVE
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
 opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
-opt.options["wantsol"] = 1
-opt.options["output_file"] = "{}\\output.txt".format(current_dir)
-opt.options["max_iter"] = 6000
-#opt.options["bonmin.algorithm"] = "B-Hyb" 
-#opt.options["bonmin.allowable_fraction_gap"] = 0.5
+opt.options["halt_on_ampl_error"] = "yes"
+#opt.options["wantsol"] = 1
+#opt.options["output_file"] = "{}\\output.txt".format(current_dir)
+#opt.options["max_iter"] = 6000
+start_time = time()
 try:
     results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
 except:
     pass
 end_time = time()
-
-def row_print(array, padding=32, line_size=5):
-    for index, item in enumerate(array):
-        end = "\n" if index % line_size == 0 else ""
-        print(("{:<"+str(padding)+"}").format(item), end=end)
-    print()
-
-def print_vars(model):  # TODO generalize to all model components
-    var_list = model.component_data_objects(pyomo.environ.Var)
-    entries = []
-    for item in var_list:
-        if hasattr(item, "value"): value_s = item.value
-        elif hasattr(item, "valeus"): value_s = item.values
-        else: value_s = "No value_s"
-        entries += ["{} = {}".format(str(item), value_s)]
-    row_print(entries)
-
 print("Printing values for all variables")
 print_vars(model)
 print("Time elapsed: {}".format(round(end_time - start_time)))
