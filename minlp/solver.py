@@ -1,9 +1,10 @@
+import sympy as sym
+import os
+import winsound
 from xlsx_reader import XLSXReader
 from pyomo.environ import *
 from pyomo.dae import *
-import os
 from time import time
-import winsound
 
 
 def beep(): winsound.Beep(300,2000)
@@ -56,6 +57,31 @@ for name, value in params.items():
     stored_variable = getattr(model, name)  # TODO USE hasattr
     stored_value = list(stored_variable.values()) if type(stored_variable) == pyomo.core.base.param.IndexedParam else stored_variable.value
     print("model.{} = {}".format(name, stored_value))
+
+##############################################################################################################################################################################################
+
+if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
+h = len(idx["i"])
+limit = model.IntegralLimit.value
+x, y, z = sym.symbols('x y z', real=True)
+A, B, C = sym.symbols('A, B, C', real=True, positive=True)
+
+r = sym.Matrix([ [x, y, z] ])
+mu = sym.Matrix([ [model.RPMean_i[1], model.RPMean_i[2], model.RPMean_i[3]] ])
+sig = sym.Matrix([ [model.Covariance_iI[1,1], model.Covariance_iI[1,2], model.Covariance_iI[1,3]],
+                   [model.Covariance_iI[2,1], model.Covariance_iI[2,2], model.Covariance_iI[2,3]], 
+                   [model.Covariance_iI[3,1], model.Covariance_iI[3,2], model.Covariance_iI[3,3]] ])
+start_time = time()
+f = sym.exp(1/2 * ((r-mu) * sig.inv() * (r-mu).transpose())[0]) / sym.sqrt((2*sym.pi)**h * sig.det())
+integral_z = sym.integrate(f.expand().nsimplify().powsimp(), (z, -limit, x-14+12)) # A
+print(integral_z); print("z time: ", time()-start_time); beep()
+integral_zy = sym.integrate(integral_z.expand().nsimplify().powsimp(), (y, -limit, x-14+16)) # B
+print(integral_zy); print("zy time: ", time()-start_time); beep()
+integral_zyx = sym.integrate(integral_zy.expand().nsimplify().powsimp(), (x, 14, limit)) # C
+print(integral_zyx); print("zyx time: ", time()-start_time); beep()
+end_time = time()
+
+##############################################################################################################################################################################################
 
 ## >> VARIABLES 
 
@@ -344,41 +370,6 @@ model.CS4535 = Constraint(idx["j"], idx["t"], rule=CS4535)
 def CS463(model, j, r, t): # TEST
     return model.D_jrt[j,r,t] == model.alpha_jt[j,t] * model.Lambda_rt[r,t]
 model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
-
-
-import sympy as sym
-
-h = 3 # if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
-x, y, z = sym.symbols('x y z', real=True)
-a3, a4, SPR1 = sym.symbols('a3, a4, SPR1', real=True, positive=True)
-
-r = sym.Matrix([ [x, y, z] ])
-mu = sym.Matrix([ [model.RPMean_i[1], model.RPMean_i[2], model.RPMean_i[3]] ])
-sig = sym.Matrix([ [model.Covariance_iI[1,1], model.Covariance_iI[1,2], model.Covariance_iI[1,3]],
-                   [model.Covariance_iI[2,1], model.Covariance_iI[2,2], model.Covariance_iI[2,3]], 
-                   [model.Covariance_iI[3,1], model.Covariance_iI[3,2], model.Covariance_iI[3,3]] ])
-f = sym.exp(1/2 * ((r-mu) * sig.inv() * (r-mu).transpose())[0]) / sym.sqrt((2*sym.pi)**h * sig.det())
-
-f2 = sym.Rational(63493635934241,1000000000000000)*sym.exp(3893/8)*sym.exp(-15*x)*sym.exp(x**2/2)*sym.exp(-17*y/4)*sym.exp(y**2/8)*sym.exp(-52*z)*sym.exp(2*z**2)
-
-gx = sym.exp(-15*x)*sym.exp(x**2/2)
-gy = sym.exp(-17*y/4)*sym.exp(y**2/8)
-gz = sym.exp(-52*z)*sym.exp(2*z**2)
-
-Gx = sym.integrate(sym.powsimp(gx), (x,SPR1, 100))
-Gy = sym.integrate(sym.powsimp(gy), (y,-100, a4))
-Gz = sym.integrate(sym.powsimp(gz), (z,-100, a3))
-
-sym.pprint(Gx)
-sym.pprint(Gy)
-sym.pprint(Gz)
-
-print(Gx.subs(SPR1,6).evalf())
-
-F2 = sym.Rational(63493635934241,1000000000000000)*sym.exp(sym.Rational(3893,8))*Gx*Gy*Gz
-
-sym.pprint(F2)
-sym.pprint(sym.simplify(F2))
 
 
 """ UNCOMMENT LATER
