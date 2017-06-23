@@ -7,6 +7,44 @@ import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
 #import code; code.interact(local=locals())
 start_time = time()
 
+
+"""
+SPR = 14
+B = x - 14 + 16
+A = x - 14 + 12
+mu = { {15.0, 17.0, 13.0} }
+sig = { {1.0, 0.0,  0.0}, {0.0, 4.0,  0.0}, {0.0, 0.0, 0.25} }
+h = 3
+r = { {x, y, z} }
+intlimit = Infinity
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]]
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]]
+intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}]
+""" 
+"""
+import sympy as sym
+h = len(idx["i"])
+limit = sym.oo
+x, y, z = sym.symbols('x y z', real=True)
+A, B, C = sym.symbols('A, B, C', real=True, positive=True)
+r = sym.Matrix([ [x, y, z] ])
+mu = sym.Matrix([ [model.RPMean_i[1], model.RPMean_i[2], model.RPMean_i[3]] ])
+sig = sym.Matrix([ [model.Covariance_iI[1,1], model.Covariance_iI[1,2], model.Covariance_iI[1,3]],
+                   [model.Covariance_iI[2,1], model.Covariance_iI[2,2], model.Covariance_iI[2,3]], 
+                   [model.Covariance_iI[3,1], model.Covariance_iI[3,2], model.Covariance_iI[3,3]] ])
+#import code;code.interact(local=locals())
+start_time = time()
+A, B, C = x-14+12, x-14+16, 14
+f = sym.exp(-1/2 * ((r-mu) * sig.inv() * (r-mu).transpose())[0]) / sym.sqrt((2*sym.pi)**h * sig.det())
+sym.pprint(f.expand())
+integral_z = sym.integrate(f.expand().nsimplify().powsimp(), (z, -limit, A))
+print(integral_z); print("z time: ", time()-start_time); beep()
+integral_zy = sym.integrate(integral_z.expand().nsimplify().powsimp(), (y, -limit, B))
+print(integral_zy); print("zy time: ", time()-start_time); beep()
+integral_zyx = sym.integrate(integral_zy.expand().nsimplify().powsimp(), (x, C, limit))
+print(integral_zyx); print("zyx time: ", time()-start_time); beep()
+"""
+
 def PyomoMin(a, b):
     return base.expr.Expr_if(IF=a > b, THEN=a, ELSE=b)
 

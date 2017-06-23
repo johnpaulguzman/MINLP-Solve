@@ -1,4 +1,3 @@
-import sympy as sym
 import os
 import winsound
 from xlsx_reader import XLSXReader
@@ -59,27 +58,38 @@ for name, value in params.items():
     print("model.{} = {}".format(name, stored_value))
 
 ##############################################################################################################################################################################################
-
 if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
-h = len(idx["i"])
-limit = model.IntegralLimit.value
-x, y, z = sym.symbols('x y z', real=True)
-A, B, C = sym.symbols('A, B, C', real=True, positive=True)
+"""
+https://mathematica.stackexchange.com/questions/115197/running-mathematica-notebook-files-in-command-mode
+https://mathematica.stackexchange.com/questions/30310/command-line-execution-of-mathematica-notebooks-and-conversion-to-m
+"""
+import subprocess
 
-r = sym.Matrix([ [x, y, z] ])
-mu = sym.Matrix([ [model.RPMean_i[1], model.RPMean_i[2], model.RPMean_i[3]] ])
-sig = sym.Matrix([ [model.Covariance_iI[1,1], model.Covariance_iI[1,2], model.Covariance_iI[1,3]],
-                   [model.Covariance_iI[2,1], model.Covariance_iI[2,2], model.Covariance_iI[2,3]], 
-                   [model.Covariance_iI[3,1], model.Covariance_iI[3,2], model.Covariance_iI[3,3]] ])
-start_time = time()
-f = sym.exp(1/2 * ((r-mu) * sig.inv() * (r-mu).transpose())[0]) / sym.sqrt((2*sym.pi)**h * sig.det())
-integral_z = sym.integrate(f.expand().nsimplify().powsimp(), (z, -limit, x-14+12)) # A
-print(integral_z); print("z time: ", time()-start_time); beep()
-integral_zy = sym.integrate(integral_z.expand().nsimplify().powsimp(), (y, -limit, x-14+16)) # B
-print(integral_zy); print("zy time: ", time()-start_time); beep()
-integral_zyx = sym.integrate(integral_zy.expand().nsimplify().powsimp(), (x, 14, limit)) # C
-print(integral_zyx); print("zyx time: ", time()-start_time); beep()
-end_time = time()
+mathKernel = r"C:\Program Files\Wolfram Research\Mathematica\11.0\MathKernel.exe"
+mathFile = r"C:\Users\pu\Desktop\test.m"
+run_script = r'"{}" -initfile "{}"'.format(mathKernel, mathFile)
+
+process=subprocess.Popen(run_script,
+        shell=True,
+        stdout=subprocess.PIPE)
+
+import code;code.interact(local=locals())
+
+matlabQuery = """
+SPR = 14
+B = x - 14 + 16
+A = x - 14 + 12
+mu = { {15.0, 17.0, 13.0} }
+sig = { {1.0, 0.0,  0.0}, {0.0, 4.0,  0.0}, {0.0, 0.0, 0.25} }
+h = 3
+r = { {x, y, z} }
+intlimit = Infinity
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]]
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]]
+intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}]
+Return[intres]
+"""
+import code; code.interact(local=locals())
 
 ##############################################################################################################################################################################################
 
