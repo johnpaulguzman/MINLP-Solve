@@ -75,6 +75,7 @@ for name, value in params.items():
     print("model.{} = {}".format(name, stored_value))
 
 ##############################################################################################################################################################################################
+""" COMMENTED OUT FOR GIT
 if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
 t = 1
 S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
@@ -192,7 +193,7 @@ Print[intres]; (" OUTPUT # 1 ")
 '''
 math_output = RunMathematica(alphaX_query_replace, alphaX_query)
 import code;code.interact(local=locals())
-
+"""
 ##############################################################################################################################################################################################
 
 ## >> VARIABLES 
@@ -484,7 +485,6 @@ def CS463(model, j, r, t): # TEST
 model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
 
 
-
 ## >> SOLVE
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=config.solver_name, PATH=config.solver_path))
 opt = SolverFactory(config.solver_name, executable=config.solver_path)  # solver_io=solver_io)
@@ -499,7 +499,6 @@ end_time = time()
 print("Printing values for all variables")
 print_vars(model)
 print("Time elapsed: {}".format(round(end_time - start_time)))
-import code; code.interact(local=locals())
 
-#results.write()
+results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()
