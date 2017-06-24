@@ -1,11 +1,12 @@
-import os
-import winsound
-from xlsx_reader import XLSXReader
+import subprocess
 from pyomo.environ import *
 from pyomo.dae import *
 from time import time
 
+import config
+from xlsx_reader import XLSXReader
 
+import winsound
 def beep(): winsound.Beep(300,2000)
 
 def row_print(array, padding=32, line_size=5):
@@ -38,59 +39,63 @@ def SafeIdx(item, *index_set, default=0):
 def PreSafeIdx(array, remove_leq=1):
     return [item for item in array if item > remove_leq]
 
-current_dir = os.path.split(os.path.abspath(__file__))[0]
-solver_name = "bonmin"
-solver_path = "{}\\..\\solvers\\CoinAll-1.6.0-win64-intel11.1\\bin\\bonmin.exe".format(current_dir)
-input_path = "{}\\Parameters.xlsx".format(current_dir)
-input_reader = XLSXReader(input_path)
+def float_or_str(item):
+    try: return float(item)
+    except: return str(item).strip()
+
+def dict_replace(string, dict):
+    for key, value in dict.items():
+        string = string.replace(key, value)
+    return string
+
+def RunMathematica(query, values):
+    with open(config.math_script, 'w') as file: file.write(dict_replace(query, values))
+    run_script = r'"{}" -script "{}"'.format(config.math_exe, config.math_script)
+    process = subprocess.Popen(run_script, stdout=subprocess.PIPE)
+    return [float_or_str(line) for line in process.stdout.readlines()]
+
+input_reader = XLSXReader(config.input_path)
 idx, params = input_reader.extract_idxParams()
 model = ConcreteModel()
-print(">>Using the solver {} running in {}".format(solver_name, solver_path))
-print(">>Parsing .xlsx file in {}".format(input_path))
+print(">>Using the solver {} running in {}".format(config.solver_name, config.solver_path))
+print(">>Parsing .xlsx file in {}".format(config.input_path))
 print(">>Loaded index values:")
 for idx_name, idx_range in idx.items():
     print("{} = {}".format(idx_name, idx_range))
 print(">>Loaded parameter values:")
 for name, value in params.items():
     setattr(model, name, Param(*input_reader.get_idx(name, idx) , initialize=value, default=-1))
-    stored_variable = getattr(model, name)  # TODO USE hasattr
+    stored_variable = getattr(model, name)  # OR use hasattr
     stored_value = list(stored_variable.values()) if type(stored_variable) == pyomo.core.base.param.IndexedParam else stored_variable.value
     print("model.{} = {}".format(name, stored_value))
 
 ##############################################################################################################################################################################################
 if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
-"""
-https://mathematica.stackexchange.com/questions/115197/running-mathematica-notebook-files-in-command-mode
-https://mathematica.stackexchange.com/questions/30310/command-line-execution-of-mathematica-notebooks-and-conversion-to-m
-"""
-import subprocess
 
-mathKernel = r"C:\Program Files\Wolfram Research\Mathematica\11.0\MathKernel.exe"
-mathFile = r"C:\Users\pu\Desktop\test.m"
-run_script = r'"{}" -initfile "{}"'.format(mathKernel, mathFile)
+alpha1_query_replace = {"SPR_var": "14.0000", 
+                        "B_var": "x - 14 + 16", 
+                        "A_var": "x - 14 + 12",
+                        "mu_var": "{{ {{{}, {}, {}}} }}".format(*model.RPMean_i.values()),
+                        "sig_var": "{{ {{{}, {},  {}}}, {{{}, {},  {}}}, {{{}, {}, {}}} }}".format(*model.Covariance_iI.values())}
+alpha1_query = '''
+SPR = SPR_var;
+B = B_var;
+A = A_var;
+mu = mu_var;
+sig = sig_var;
+h = 3;
+r = { {x, y, z} };
+intlimit = Infinity;
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
+Print[intres]; (" OUTPUT 1 ")
+'''
 
-process=subprocess.Popen(run_script,
-        shell=True,
-        stdout=subprocess.PIPE)
+math_output = RunMathematica(alpha1_query, alpha1_query_replace)
+alpha1, *_ = math_output
 
 import code;code.interact(local=locals())
-
-matlabQuery = """
-SPR = 14
-B = x - 14 + 16
-A = x - 14 + 12
-mu = { {15.0, 17.0, 13.0} }
-sig = { {1.0, 0.0,  0.0}, {0.0, 4.0,  0.0}, {0.0, 0.0, 0.25} }
-h = 3
-r = { {x, y, z} }
-intlimit = Infinity
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]]
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]]
-intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}]
-Return[intres]
-"""
-import code; code.interact(local=locals())
-
 ##############################################################################################################################################################################################
 
 ## >> VARIABLES 
@@ -382,18 +387,16 @@ def CS463(model, j, r, t): # TEST
 model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
 
 
-""" UNCOMMENT LATER
+
 ## >> SOLVE
-print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=solver_name, PATH=solver_path))
-opt = SolverFactory(solver_name, executable=solver_path)  # solver_io=solver_io)
-opt.options["halt_on_ampl_error"] = "yes"
-#opt.options["wantsol"] = 1
-#opt.options["output_file"] = "{}\\output.txt".format(current_dir)
-#opt.options["max_iter"] = 6000
+print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=config.solver_name, PATH=config.solver_path))
+opt = SolverFactory(config.solver_name, executable=config.solver_path)  # solver_io=solver_io)
+for key, value in config.solver_options.items(): opt.options[key] = value
 start_time = time()
 try:
-    results = opt.solve(model, logfile="{}\\solver.log".format(current_dir), keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
-except:
+    results = opt.solve(model, logfile=config.solver_log, keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
+except Exception as e:
+    print(e)
     pass
 end_time = time()
 print("Printing values for all variables")
@@ -403,4 +406,3 @@ import code; code.interact(local=locals())
 
 #results.write()
 #import sys; sys.stdout = open('model.txt', 'w'); model.display()
-"""

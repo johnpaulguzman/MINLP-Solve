@@ -1,17 +1,12 @@
 import openpyxl
 
+import config
 
 class XLSXReader:
-    info_delimiter = "&"
-    dims_delimiter = "_"
-    assign_delimiter = "="
-    range_infix = "-"
-    index_keyword = "INDEX_METADATA"
-    decimal_precision = 16
     none_index = lambda array: array.index(None) if None in array else None
 
     def __init__(self, xlsx_path):
-        self.round_places = self.decimal_precision-1
+        self.round_places = config.decimal_precision-1
         self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(xlsx_path, data_only=True))
 
     def extract_data_chunks(self, book, exclude=None):
@@ -31,13 +26,13 @@ class XLSXReader:
     def init_idx(self, data_chunk):
         index_data = {}
         for index, index_range, *_ in data_chunk[1:]:
-            lb, ub, *_ = index_range.split(self.range_infix)
+            lb, ub, *_ = index_range.split(config.range_infix)
             index_data[index] = list(range(int(lb), int(ub)+1))
         return index_data
 
     def parse_dim_info(self, dims_dict, dim_info):
         if not dim_info: return 
-        dim_index, dim_value, *_ = dim_info.split(self.assign_delimiter)
+        dim_index, dim_value, *_ = dim_info.split(config.assign_delimiter)
         dims_dict[dim_index] = dim_value
 
     def process_number(self, number):
@@ -47,9 +42,9 @@ class XLSXReader:
         P = {}
         idx = {}
         for data_chunk in self.data_chunks:
-            if data_chunk[0][0] == self.index_keyword: idx = self.init_idx(data_chunk)
+            if data_chunk[0][0] == config.index_keyword: idx = self.init_idx(data_chunk)
             else:
-                index, *appended_dims_info = data_chunk[0][0].split(self.info_delimiter)
+                index, *appended_dims_info = data_chunk[0][0].split(config.info_delimiter)
                 if not P.get(index): P[index] = {}
                 dims_dict = {}
                 for dim_info in appended_dims_info: self.parse_dim_info(dims_dict, dim_info)
@@ -67,7 +62,7 @@ class XLSXReader:
         return (idx, P)
 
     def get_dims(self, name):
-        splitted = name.split(self.dims_delimiter)
+        splitted = name.split(config.dims_delimiter)
         return tuple(splitted[1]) if len(splitted) == 2 else []
 
     def get_idx(self, name, idx):
