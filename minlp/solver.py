@@ -48,16 +48,17 @@ def dict_replace(string, dict):
         string = string.replace(key, value)
     return string
 
-def RunMathematica(query, values):
+def RunMathematica(query, values, j, t, get_last_only=True):
     start_time = time()
+    script_dir = "{}\\alpha_jt[{},{}].m".format(config.math_script_dir, j, t)
     run_script = dict_replace(query, values)
     print(">>Running script =====\n{}\n<<End of script ======".format(run_script))
-    with open(config.math_script, 'w') as file: file.write(run_script)
-    run_script = r'"{}" -script "{}"'.format(config.math_exe, config.math_script)
+    with open(script_dir, 'w') as file: file.write(run_script)
+    run_script = r'"{}" -script "{}"'.format(config.math_exe, script_dir)
     process = subprocess.Popen(run_script, stdout=subprocess.PIPE)
     script_return = [float_or_str(line) for line in process.stdout.readlines()]
     print(">>Returned: {} | Time elapsed (sec): {}".format(script_return, time() - start_time))
-    return script_return
+    return script_return[-1] if get_last_only else script_return
 
 input_reader = XLSXReader(config.input_path)
 idx, params = input_reader.extract_idxParams()
@@ -75,190 +76,153 @@ for name, value in params.items():
     print("model.{} = {}".format(name, stored_value))
 
 ##############################################################################################################################################################################################
-if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
-t = 1
-S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
-T4, T5, T6, T7 = [model.Contingency_k[k] for k in idx["k"]] 
-outs = []
+def apply_alpha_contingency(model, alphas):
+    idx = {"k": [4,5,6,7], "t": [1,2,3,4,5,6,7]}
+    are_zeroes = [(bool(model.Contingency_k[k]), k) for k in idx["k"]]
+    are_zeroes += [(True, 1)]
+    case_number = sum([is_zero[0] for is_zero in are_zeroes])
+    print(">>Contingency Case: {}".format(case_number))
+    import code;code.interact(local=locals())
+    if case_number == 0:  # Case when all thetas are 0
+        return # Update nothing
+    elif case_number == 1:  # Case when exactly 1 theta is 0
+        update_k = [is_zero[1] for is_zero in are_zeroes if is_zero[0]][0]
+        print(update_k)  # TODO
+    else: # Case when more 1 thetas are 0
+        update_ks = [is_zero[1] for is_zero in are_zeroes if is_zero[0]]
+        print(update_ks)  # TODO
+    import code;code.interact(local=locals())
 
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha0_replace = {"SPR_var": f"{S1}", 
-                  "B_var": f"Min[ {S2}, {S4}/(1+{T4}) - x ]",
-                  "A_var": f"Min[ {S3}, {S5}/(1+{T5}) - x, {S6}/(1+{T6}) - y, {S7}/(1+{T7}) - x - y ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha0_query = ''' ("ALPHA [0,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, -intlimit, SPR}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [0,1]")
-'''
-outs += RunMathematica(alpha0_query, alpha0_replace)
+def alpha_integrals(model, j, t):
+    S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
+    T4, T5, T6, T7 = [model.Contingency_k[k] for k in idx["k"]] 
+    if j == 0:
+        replace_dict = {
+            "SPR_var": f"{S1}", 
+            "B_var": f"Min[ {S2}, {S4}/(1+{T4}) - x ]",
+            "A_var": f"Min[ {S3}, {S5}/(1+{T5}) - x, {S6}/(1+{T6}) - y, {S7}/(1+{T7}) - x - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values()) }
+        math_query = ''' ("ALPHA [0,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {x, -intlimit, SPR}, {y, -intlimit, B}, {z, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [0,%d]")
+            ''' % tuple([t]*2)
+    elif j == 1:
+        replace_dict = {"SPR_var": f"{S1}", 
+            "B_var": f"Min[ x - {S1} + {S2}, (x-{S1}+{S4})/(1+{T4}) - x ]", 
+            "A_var": f"Min[ x - {S1} + {S3}, (x-{S1}+{S5})/(1+{T5}) - x, (x-{S1}+{S6})/(1+{T6}) - y, (x-{S1}+{S7})/(1+{T7}) - x - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [1,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [1,%d]")
+            ''' % tuple([t]*2)
+    elif j == 2:
+        replace_dict = {"SPR_var": f"{S2}", 
+            "B_var": f"Min[ y - {S2} + {S1}, (y-{S2}+{S4})/(1+{T4}) - y ]", 
+            "A_var":  f"Min[ y - {S2} + {S3}, (y-{S2}+{S5})/(1+{T5}) - x, (y-{S2}+{S6})/(1+{T6}) - y, (y-{S2}+{S7})/(1+{T7}) - x - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [2,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {y, SPR, intlimit}, {x, -intlimit, B}, {z, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [2,%d]")
+            ''' % tuple([t]*2)
+    elif j ==3:
+        replace_dict = {"SPR_var": f"{S3}", 
+            "B_var": f"Min[ y - {S3} + {S1}, (y-{S3}+{S5})/(1+{T5}) - y ]", 
+            "A_var": f"Min[ y - {S3} + {S2},  (y-{S3}+{S4})/(1+{T4}) - z, (y-{S3}+{S6})/(1+{T6}) - y, (y-{S3}+{S7})/(1+{T7}) - z - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [3,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {y, SPR, intlimit}, {z, -intlimit, B}, {x, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [3,%d]")
+            ''' % tuple([t]*2)
+    elif j == 4:
+        replace_dict = {"SPR_var": f"(y-{S2}+{S4})/(1+{T4}) - y", 
+            "B_var": f"Max[ ({S4})/(1+{T4}) - x, (x-{S1}+{S4})/(1+{T4}) - x ]", 
+            "A_var": f"Min[ (x+y)*(1+{T4}) - {S4} + {S3}, ((x+y)*(1+{T4})-{S4}+{S5})/(1+{T5}) - x, ((x+y)*(1+{T4})-{S4}+{S6})/(1+{T6}) - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [4,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [4,%d]")
+            ''' % tuple([t]*2)
+    elif j == 5: # UPDATED CONTINGENCY VERSION
+        replace_dict = {"SPR_var": f"(z-{S3}+{S5})/(1+{T5}) - z", 
+            "B_var": f"Max[ ({S5})/(1+{T5}) - x, (x-{S1}+{S5})/(1+{T5}) - x  ]", 
+            "A_var": f"Min[ (x+z)*(1+{T5}) - {S5} + {S2}, ((x+z)*(1+{T5})-{S5}+{S4})/(1+{T4}) - x , ((x+z)*(1+{T5})-{S5}+{S6})/(1+{T6}) - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [5,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {x, SPR, intlimit}, {z, B, intlimit}, {y, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [5,%d]")
+            ''' % tuple([t]*2)
+    elif j == 6:
+        replace_dict = {"SPR_var": f"(y-{S3}+{S6})/(1+{T6}) - y", 
+            "B_var": f"Max[ ({S6})/(1+{T6}) - z, (z-{S2}+{S6})/(1+{T6}) - z ]", 
+            "A_var": f"Min[ (z+x)*(1+{T6}) - {S6} + {S1}, ((z+x)*(1+{T6})-{S6}+{S4})/(1+{T4}) - z, ((z+x)*(1+{T6})-{S6}+{S5})/(1+{T5}) - x, ((z+x)*(1+{T6})-{S6}+{S7})/(1+{T7}) - z - x ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [6,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {z, SPR, intlimit}, {x, B, intlimit}, {y, -intlimit, A}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [6,%d]")
+            ''' % tuple([t]*2)
+    elif j == 7:
+        replace_dict = {"SPR_var": f"((y+z)*(1+{T6})-{S6}+{S7})/(1+{T7}) - y - z", 
+            "B_var": f"Max[ (z-{S3}+{S7})/(1+{T7}) - x - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]", 
+            "A_var": f"Max[ ({S7})/(1+{T7}) - x - y, (x-{S1}+{S7})/(1+{T7}) - x - y, (y-{S2}+{S7})/(1+{T7}) - x - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
+            "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+            "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+        math_query = ''' ("ALPHA [7,%d] COMPUTATION")
+            SPR = SPR_var;  B = B_var;  A = A_var;  mu = mu_var;  sig = sig_var;
+            h = 3;  r = { {x, y, z} };  intlimit = Infinity;
+            mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+            f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+            intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, A, intlimit}];
+            Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [7,%d]")
+            ''' % tuple([t]*2)
+    else: raise Exception("ERROR: This program only works for i=[1..3], j=[1..7]")
+    return RunMathematica(math_query, replace_dict, j, t)
 
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha1_replace = {"SPR_var": f"{S1}", 
-                  "B_var": f"Min[ x - {S1} + {S2}, (x-{S1}+{S4})/(1+{T4}) - x ]", 
-                  "A_var": f"Min[ x - {S1} + {S3}, (x-{S1}+{S5})/(1+{T5}) - x, (x-{S1}+{S6})/(1+{T6}) - y, (x-{S1}+{S7})/(1+{T7}) - x - y ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha1_query = ''' ("ALPHA [1,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [1,1]")
-'''
-outs += RunMathematica(alpha1_query, alpha1_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha2_replace = {"SPR_var": f"{S2}", 
-                  "B_var": f"Min[ x - {S2} + {S1}, (x-{S2}+{S4})/(1+{T4}) - x ]", 
-                  "A_var":  f"Min[ x - {S2} + {S3}, (x-{S2}+{S5})/(1+{T5}) - y, (x-{S2}+{S6})/(1+{T6}) - x, (x-{S2}+{S7})/(1+{T7}) - y - x ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha2_query = ''' ("ALPHA [2,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [2,1]")
-'''
-outs += RunMathematica(alpha2_query, alpha2_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha3_replace = {"SPR_var": f"{S3}", 
-                  "B_var": f"Min[ x - {S3} + {S1}, (x-{S3}+{S5})/(1+{T5}) - x ]", 
-                  "A_var": f"Min[ x - {S3} + {S2},  (x-{S3}+{S4})/(1+{T4}) - y, (x-{S3}+{S6})/(1+{T6}) - x, (x-{S3}+{S7})/(1+{T7}) - y - x ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha3_query = ''' ("ALPHA [3,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [3,1]")
-'''
-outs += RunMathematica(alpha3_query, alpha3_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha4_replace = {"SPR_var": f"(y-{S2}+{S4})/(1+{T4}) - y", 
-                  "B_var": f"Max[ ({S4})/(1+{T4}) - x, (x-{S1}+{S4})/(1+{T4}) - x ]", 
-                  "A_var": f"Min[ (x+y)*(1+{T4}) - {S4} + {S3}, ((x+y)*(1+{T4})-{S4}+{S5})/(1+{T5}) - x, ((x+y)*(1+{T4})-{S4}+{S6})/(1+{T6}) - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha4_query = ''' ("ALPHA [4,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [4,1]")
-'''
-outs += RunMathematica(alpha4_query, alpha4_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha5_replace = {"SPR_var": f"(z-{S3}+{S5})/(1+{T5}) - z", 
-                  "B_var": f"Min[ ((x+z)*(1+{T5})-{S5}+{S6})/(1+{T6}) - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]", 
-                  "A_var": f"Max[ ({S5})/(1+{T5}) - x, (x-{S1}+{S5})/(1+{T5}) - x, (y-{S2}+{S5})/(1+{T5}) - x, ((x+y)*(1+{T4})-{S4}+{S5})/(1+{T5}) - x ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha5_query = ''' ("ALPHA [5,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, A, intlimit}];
-Print[intres]; (" OUTPUT ALPHA [5,1]")
-'''
-outs += RunMathematica(alpha5_query, alpha5_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha6_replace = {"SPR_var": f"(y-{S3}+{S6})/(1+{T6}) - y", 
-                  "B_var": f"Max[ ({S6})/(1+{T6}) - x, (x-{S2}+{S6})/(1+{T6}) - x ]", 
-                  "A_var": f"Min[ (x+y)*(1+{T6}) - {S6} + {S1}, ((x+y)*(1+{T6})-{S6}+{S4})/(1+{T4}) - x, ((x+y)*(1+{T6})-{S6}+{S5})/(1+{T5}) - y, ((x+y)*(1+{T6})-{S6}+{S7})/(1+{T7}) - x - y ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha6_query = ''' ("ALPHA [6,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT ALPHA [6,1]")
-'''
-outs += RunMathematica(alpha6_query, alpha6_replace)
-
-# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
-alpha7_replace = {"SPR_var": f"((y+z)*(1+{T6})-{S6}+{S7})/(1+{T7}) - y - z", 
-                  "B_var": f"Max[ (z-{S3}+{S7})/(1+{T7}) - x - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]", 
-                  "A_var": f"Max[ ({S7})/(1+{T7}) - x - y, (x-{S1}+{S7})/(1+{T7}) - x - y, (y-{S2}+{S7})/(1+{T7}) - x - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
-                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-alpha7_query = ''' ("ALPHA [7,1] COMPUTATION")
-SPR = SPR_var;
-B = B_var;
-A = A_var;
-mu = mu_var;
-sig = sig_var;
-h = 3;
-r = { {x, y, z} };
-intlimit = Infinity;
-mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
-f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, A, intlimit}];
-Print[intres]; (" OUTPUT ALPHA [7,1]")
-'''
-outs += RunMathematica(alpha7_query, alpha7_replace)
-print(outs, sum(outs))
-import code;code.interact(local=locals())
+def generate_alphas(model):                             
+    alphas = {}
+    for j, t in [(j,t) for t in idx["t"][:1] for j in [0]+idx["j"]]: 
+        alphas[(j,t)] = alpha_integrals(model, j, t)
+    for i,j in alphas.items(): print("  ALPHA",i,j)
+    apply_alpha_contingency(model, alphas)
+    for i,j in alphas.items(): print("  UPDATED ALPHA",i,j)
+    import code;code.interact(local=locals())
 ##############################################################################################################################################################################################
+
+generate_alphas(model)
 
 ## >> VARIABLES 
 

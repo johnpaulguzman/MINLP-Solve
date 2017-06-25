@@ -6,7 +6,7 @@ class XLSXReader:
     none_index = lambda array: array.index(None) if None in array else None
 
     def __init__(self, xlsx_path):
-        self.round_places = config.decimal_precision-1
+        self.round_places = 16 - 1 # config.decimal_precision = 16
         self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(xlsx_path, data_only=True))
 
     def extract_data_chunks(self, book, exclude=None):

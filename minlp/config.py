@@ -3,7 +3,7 @@ current_directory = os.path.split(os.path.abspath(__file__))[0]
 
 # Mathematica Variables
 math_exe =  "C:\\Program Files\\Wolfram Research\\Mathematica\\11.0\\math.exe"
-math_script = "{}\\math_script.m".format(current_directory) #add script1234etc
+math_script_dir = "{}\\math_scripts".format(current_directory) #add script1234etc
 
 # Solver Variables
 input_path = "{}\\Parameters.xlsx".format(current_directory)
@@ -23,4 +23,3 @@ dims_delimiter = "_"
 assign_delimiter = "="
 range_infix = "-"
 index_keyword = "INDEX_METADATA"
-decimal_precision = 16  # max value
