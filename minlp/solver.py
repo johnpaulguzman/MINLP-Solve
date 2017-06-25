@@ -75,17 +75,18 @@ for name, value in params.items():
     print("model.{} = {}".format(name, stored_value))
 
 ##############################################################################################################################################################################################
-""" COMMENTED OUT FOR GIT
 if len(idx["i"]) != 3: raise Exception("This program only works for i=3")
 t = 1
 S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
 T4, T5, T6, T7 = [model.Contingency_k[k] for k in idx["k"]] 
+outs = []
 
-alpha0_query_replace = {"SPR_var": f"{S1}", 
-                        "B_var": f"Min[ {S2}, {S4}/(1+{T4}) - x ]",
-                        "A_var": f"Min[ {S3}, {S5}/(1+{T5}) - x, {S6}/(1+{T6}) - y, {S7}/(1+{T7}) - x - y ]",
-                        "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                        "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha0_replace = {"SPR_var": f"{S1}", 
+                  "B_var": f"Min[ {S2}, {S4}/(1+{T4}) - x ]",
+                  "A_var": f"Min[ {S3}, {S5}/(1+{T5}) - x, {S6}/(1+{T6}) - y, {S7}/(1+{T7}) - x - y ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
 alpha0_query = ''' ("ALPHA [0,1] COMPUTATION")
 SPR = SPR_var;
 B = B_var;
@@ -98,16 +99,16 @@ intlimit = Infinity;
 mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
 f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
 intres = Integrate[f, {x, -intlimit, SPR}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT # 1 ")
+Print[intres]; (" OUTPUT ALPHA [0,1]")
 '''
-math_output = RunMathematica(alpha0_query, alpha0_query_replace)
+outs += RunMathematica(alpha0_query, alpha0_replace)
 
-alpha1_query_replace = {"SPR_var": f"{S1}", 
-                        "B_var": f"Min[ x - {S1} + {S2}, (x-{S1}+{S4})/(1+{T4}) - x ]", 
-                        "A_var": f"Min[ x - {S1} + {S3}, (x-{S1}+{S5})/(1+{T5}) - x, (x-{S1}+{S6})/(1+{T6}) - y, (x-{S1}+{S7})/(1+{T7}) - x - y ]",
-                        "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                        "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha1_replace = {"SPR_var": f"{S1}", 
+                  "B_var": f"Min[ x - {S1} + {S2}, (x-{S1}+{S4})/(1+{T4}) - x ]", 
+                  "A_var": f"Min[ x - {S1} + {S3}, (x-{S1}+{S5})/(1+{T5}) - x, (x-{S1}+{S6})/(1+{T6}) - y, (x-{S1}+{S7})/(1+{T7}) - x - y ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
 alpha1_query = ''' ("ALPHA [1,1] COMPUTATION")
 SPR = SPR_var;
 B = B_var;
@@ -120,16 +121,16 @@ intlimit = Infinity;
 mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
 f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
 intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT # 1 ")
+Print[intres]; (" OUTPUT ALPHA [1,1]")
 '''
-math_output = RunMathematica(alpha1_query, alpha1_query_replace)
+outs += RunMathematica(alpha1_query, alpha1_replace)
 
-alpha2_query_replace = {"SPR_var": f"{S2}", 
-                        "B_var": f"Min[ x - {S2} + {S1}, (x-{S2}+{S4})/(1+{T4}) - x ]", 
-                        "A_var":  f"Min[ x - {S2} + {S3}, (x-{S2}+{S5})/(1+{T5}) - y, (x-{S2}+{S6})/(1+{T6}) - x, (x-{S2}+{S7})/(1+{T7}) - y - x ]",
-                        "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                        "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha2_replace = {"SPR_var": f"{S2}", 
+                  "B_var": f"Min[ x - {S2} + {S1}, (x-{S2}+{S4})/(1+{T4}) - x ]", 
+                  "A_var":  f"Min[ x - {S2} + {S3}, (x-{S2}+{S5})/(1+{T5}) - y, (x-{S2}+{S6})/(1+{T6}) - x, (x-{S2}+{S7})/(1+{T7}) - y - x ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
 alpha2_query = ''' ("ALPHA [2,1] COMPUTATION")
 SPR = SPR_var;
 B = B_var;
@@ -142,17 +143,16 @@ intlimit = Infinity;
 mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
 f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
 intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
-Print[intres]; (" OUTPUT # 1 ")
+Print[intres]; (" OUTPUT ALPHA [2,1]")
 '''
-math_output = RunMathematica(alpha2_query, alpha2_query_replace)
-# PAGE 29
-# 1 1     2 2     3 3     4 12    5 13    6 23    7 123
-alpha3_query_replace = {"SPR_var": f"{}", 
-                        "B_var": f"Min[ AA, AA ]", 
-                        "A_var": f"Min[ BB, BB, BB, BB ]",
-                        "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                        "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+outs += RunMathematica(alpha2_query, alpha2_replace)
 
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha3_replace = {"SPR_var": f"{S3}", 
+                  "B_var": f"Min[ x - {S3} + {S1}, (x-{S3}+{S5})/(1+{T5}) - x ]", 
+                  "A_var": f"Min[ x - {S3} + {S2},  (x-{S3}+{S4})/(1+{T4}) - y, (x-{S3}+{S6})/(1+{T6}) - x, (x-{S3}+{S7})/(1+{T7}) - y - x ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
 alpha3_query = ''' ("ALPHA [3,1] COMPUTATION")
 SPR = SPR_var;
 B = B_var;
@@ -164,20 +164,18 @@ r = { {x, y, z} };
 intlimit = Infinity;
 mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
 f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, XXX}, {y, YYY}, {z, ZZZ}];
-Print[intres]; (" OUTPUT # 1 ")
+intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, -intlimit, A}];
+Print[intres]; (" OUTPUT ALPHA [3,1]")
 '''
-math_output = RunMathematica(alpha3_query_replace, alpha3_query)
-import code;code.interact(local=locals())
+outs += RunMathematica(alpha3_query, alpha3_replace)
 
-# 1 1     2 2     3 3     4 12    5 13    6 23    7 123
-alphaX_query_replace = {"SPR_var": f"{}", 
-                        "B_var": f"Min[ AA, AA ]", 
-                        "A_var": f"Min[ BB, BB, BB, BB ]",
-                        "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
-                        "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
-
-alphaX_query = ''' ("ALPHA [X,1] COMPUTATION")
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha4_replace = {"SPR_var": f"(y-{S2}+{S4})/(1+{T4}) - y", 
+                  "B_var": f"Max[ ({S4})/(1+{T4}) - x, (x-{S1}+{S4})/(1+{T4}) - x ]", 
+                  "A_var": f"Min[ (x+y)*(1+{T4}) - {S4} + {S3}, ((x+y)*(1+{T4})-{S4}+{S5})/(1+{T5}) - x, ((x+y)*(1+{T4})-{S4}+{S6})/(1+{T6}) - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+alpha4_query = ''' ("ALPHA [4,1] COMPUTATION")
 SPR = SPR_var;
 B = B_var;
 A = A_var;
@@ -188,12 +186,78 @@ r = { {x, y, z} };
 intlimit = Infinity;
 mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
 f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-intres = Integrate[f, {x, XXX}, {y, YYY}, {z, ZZZ}];
-Print[intres]; (" OUTPUT # 1 ")
+intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, -intlimit, A}];
+Print[intres]; (" OUTPUT ALPHA [4,1]")
 '''
-math_output = RunMathematica(alphaX_query_replace, alphaX_query)
+outs += RunMathematica(alpha4_query, alpha4_replace)
+
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha5_replace = {"SPR_var": f"(z-{S3}+{S5})/(1+{T5}) - z", 
+                  "B_var": f"Min[ ((x+z)*(1+{T5})-{S5}+{S6})/(1+{T6}) - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]", 
+                  "A_var": f"Max[ ({S5})/(1+{T5}) - x, (x-{S1}+{S5})/(1+{T5}) - x, (y-{S2}+{S5})/(1+{T5}) - x, ((x+y)*(1+{T4})-{S4}+{S5})/(1+{T5}) - x ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+alpha5_query = ''' ("ALPHA [5,1] COMPUTATION")
+SPR = SPR_var;
+B = B_var;
+A = A_var;
+mu = mu_var;
+sig = sig_var;
+h = 3;
+r = { {x, y, z} };
+intlimit = Infinity;
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+intres = Integrate[f, {x, SPR, intlimit}, {y, -intlimit, B}, {z, A, intlimit}];
+Print[intres]; (" OUTPUT ALPHA [5,1]")
+'''
+outs += RunMathematica(alpha5_query, alpha5_replace)
+
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha6_replace = {"SPR_var": f"(y-{S3}+{S6})/(1+{T6}) - y", 
+                  "B_var": f"Max[ ({S6})/(1+{T6}) - x, (x-{S2}+{S6})/(1+{T6}) - x ]", 
+                  "A_var": f"Min[ (x+y)*(1+{T6}) - {S6} + {S1}, ((x+y)*(1+{T6})-{S6}+{S4})/(1+{T4}) - x, ((x+y)*(1+{T6})-{S6}+{S5})/(1+{T5}) - y, ((x+y)*(1+{T6})-{S6}+{S7})/(1+{T7}) - x - y ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+alpha6_query = ''' ("ALPHA [6,1] COMPUTATION")
+SPR = SPR_var;
+B = B_var;
+A = A_var;
+mu = mu_var;
+sig = sig_var;
+h = 3;
+r = { {x, y, z} };
+intlimit = Infinity;
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, -intlimit, A}];
+Print[intres]; (" OUTPUT ALPHA [6,1]")
+'''
+outs += RunMathematica(alpha6_query, alpha6_replace)
+
+# 1->1     2->2     3->3     4->12    5->13    6->23    7->123
+alpha7_replace = {"SPR_var": f"((y+z)*(1+{T6})-{S6}+{S7})/(1+{T7}) - y - z", 
+                  "B_var": f"Max[ (z-{S3}+{S7})/(1+{T7}) - x - z, ((x+z)*(1+{T5})-{S5}+{S7})/(1+{T7}) - x - z ]", 
+                  "A_var": f"Max[ ({S7})/(1+{T7}) - x - y, (x-{S1}+{S7})/(1+{T7}) - x - y, (y-{S2}+{S7})/(1+{T7}) - x - y, ((x+y)*(1+{T4})-{S4}+{S7})/(1+{T7}) - x - y ]",
+                  "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
+                  "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
+alpha7_query = ''' ("ALPHA [7,1] COMPUTATION")
+SPR = SPR_var;
+B = B_var;
+A = A_var;
+mu = mu_var;
+sig = sig_var;
+h = 3;
+r = { {x, y, z} };
+intlimit = Infinity;
+mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
+f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
+intres = Integrate[f, {x, SPR, intlimit}, {y, B, intlimit}, {z, A, intlimit}];
+Print[intres]; (" OUTPUT ALPHA [7,1]")
+'''
+outs += RunMathematica(alpha7_query, alpha7_replace)
+print(outs, sum(outs))
 import code;code.interact(local=locals())
-"""
 ##############################################################################################################################################################################################
 
 ## >> VARIABLES 
@@ -489,16 +553,15 @@ model.CS463 = Constraint(idx["j"], idx["r"], idx["t"], rule=CS463)
 print(">>Using the solver {NAME} in filepath {PATH}".format(NAME=config.solver_name, PATH=config.solver_path))
 opt = SolverFactory(config.solver_name, executable=config.solver_path)  # solver_io=solver_io)
 for key, value in config.solver_options.items(): opt.options[key] = value
-start_time = time()
 try:
-    results = opt.solve(model, logfile=config.solver_log, keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
+    start_time = time()
+    results = opt.solve(model, keepfiles=True, tee=True)  # , symbolic_solver_labels=True)
+    end_time = time()
+    print("Printing values for all variables")
+    print_vars(model)
+    print("Time elapsed: {}".format(round(end_time - start_time)))
+    #import sys; sys.stdout = open('model.txt', 'w'); model.display()
+    results.write()
 except Exception as e:
     print(e)
     pass
-end_time = time()
-print("Printing values for all variables")
-print_vars(model)
-print("Time elapsed: {}".format(round(end_time - start_time)))
-
-results.write()
-#import sys; sys.stdout = open('model.txt', 'w'); model.display()
