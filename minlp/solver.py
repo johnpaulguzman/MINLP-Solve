@@ -1,4 +1,5 @@
 import subprocess
+import os
 from pyomo.environ import *
 from pyomo.dae import *
 from time import time
@@ -77,21 +78,19 @@ for name, value in params.items():
 
 ##############################################################################################################################################################################################
 def apply_alpha_contingency(model, alphas):
-    idx = {"k": [4,5,6,7], "t": [1,2,3,4,5,6,7]}
     are_zeroes = [(bool(model.Contingency_k[k]), k) for k in idx["k"]]
-    are_zeroes += [(True, 1)]
     case_number = sum([is_zero[0] for is_zero in are_zeroes])
     print(">>Contingency Case: {}".format(case_number))
-    import code;code.interact(local=locals())
+    update_ks = [is_zero[1] for is_zero in are_zeroes if is_zero[0]]
     if case_number == 0:  # Case when all thetas are 0
-        return # Update nothing
+        pass # Update nothing
     elif case_number == 1:  # Case when exactly 1 theta is 0
-        update_k = [is_zero[1] for is_zero in are_zeroes if is_zero[0]][0]
-        print(update_k)  # TODO
+        for t in idx["t"]:
+            alphas[(update_ks[0],t)] = 1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j != update_ks[0]])
     else: # Case when more 1 thetas are 0
-        update_ks = [is_zero[1] for is_zero in are_zeroes if is_zero[0]]
-        print(update_ks)  # TODO
-    import code;code.interact(local=locals())
+        for t in idx["t"]:
+            for update_k in update_ks:
+                alphas[(update_k,t)] = (1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j not in update_ks])) * model.Contingency_k[update_k] / sum(model.Contingency_k[k_non0] for k_non0 in idx["k"] if k_non0 in update_ks)
 
 def alpha_integrals(model, j, t):
     S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
@@ -212,17 +211,17 @@ def alpha_integrals(model, j, t):
     else: raise Exception("ERROR: This program only works for i=[1..3], j=[1..7]")
     return RunMathematica(math_query, replace_dict, j, t)
 
-def generate_alphas(model):                             
+def generate_alphas(model):
+    if not os.path.exists(config.math_script_dir): os.makedirs(config.math_script_dir)                           
     alphas = {}
-    for j, t in [(j,t) for t in idx["t"][:1] for j in [0]+idx["j"]]: 
+    for j, t in [(j,t) for t in idx["t"] for j in [0]+idx["j"]]: 
         alphas[(j,t)] = alpha_integrals(model, j, t)
     for i,j in alphas.items(): print("  ALPHA",i,j)
     apply_alpha_contingency(model, alphas)
     for i,j in alphas.items(): print("  UPDATED ALPHA",i,j)
-    import code;code.interact(local=locals())
 ##############################################################################################################################################################################################
 
-generate_alphas(model)
+#generate_alphas(model)
 
 ## >> VARIABLES 
 
