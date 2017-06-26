@@ -61,36 +61,32 @@ def RunMathematica(query, values, j, t, get_last_only=True):
     print(">>Returned: {} | Time elapsed (sec): {}".format(script_return, time() - start_time))
     return script_return[-1] if get_last_only else script_return
 
-input_reader = XLSXReader(config.input_path)
-idx, params = input_reader.extract_idxParams()
-model = ConcreteModel()
-print(">>Using the solver {} running in {}".format(config.solver_name, config.solver_path))
-print(">>Parsing .xlsx file in {}".format(config.input_path))
-print(">>Loaded index values:")
-for idx_name, idx_range in idx.items():
-    print("{} = {}".format(idx_name, idx_range))
-print(">>Loaded parameter values:")
-for name, value in params.items():
-    setattr(model, name, Param(*input_reader.get_idx(name, idx) , initialize=value, default=-1))
-    stored_variable = getattr(model, name)  # OR use hasattr
-    stored_value = list(stored_variable.values()) if type(stored_variable) == pyomo.core.base.param.IndexedParam else stored_variable.value
-    print("model.{} = {}".format(name, stored_value))
-
-##############################################################################################################################################################################################
 def apply_alpha_contingency(model, alphas):
-    are_zeroes = [(bool(model.Contingency_k[k]), k) for k in idx["k"]]
-    case_number = sum([is_zero[0] for is_zero in are_zeroes])
+    special_case_ks = [5, 6, 7]
+    are_non0 = [(bool(model.Contingency_k[k]), k) for k in idx["k"]]
+    case_number = sum([is_non0[0] for is_non0 in are_non0])
     print(">>Contingency Case: {}".format(case_number))
-    update_ks = [is_zero[1] for is_zero in are_zeroes if is_zero[0]]
+    update_ks = [is_non0[1] for is_non0 in are_non0 if is_non0[0]]
     if case_number == 0:  # Case when all thetas are 0
         pass # Update nothing
     elif case_number == 1:  # Case when exactly 1 theta is 0
         for t in idx["t"]:
             alphas[(update_ks[0],t)] = 1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j != update_ks[0]])
-    else: # Case when more 1 thetas are 0
+    elif case_numer > 1: # Case when more 1 thetas are 0
         for t in idx["t"]:
             for update_k in update_ks:
                 alphas[(update_k,t)] = (1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j not in update_ks])) * model.Contingency_k[update_k] / sum(model.Contingency_k[k_non0] for k_non0 in idx["k"] if k_non0 in update_ks)
+    # NOT TESTED
+    alpha7_case_number = sum([bool(model.Contingency_k[k_special]) for k_special in special_case_ks])
+    if alpha7_case_number == 0:
+        pass
+    elif alpha7_case_number == 1:
+        for t in idx["t"]:
+            alphas[(7,t)] = 1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j != update_ks[0]])
+    elif alpha7_case_numer > 1:
+        for t in idx["t"]:
+            for update_k in update_ks:
+                alphas[(7,t)] = (1 - sum([alphas[(j,t)] for j in [0]+idx["j"] if j not in update_ks])) * model.Contingency_k[update_k] / sum(model.Contingency_k[k_non0] for k_non0 in idx["k"] if k_non0 in update_ks)
 
 def alpha_integrals(model, j, t):
     S1, S2, S3, S4, S5, S6, S7 = [model.SPR_jt[j,t] for j in idx["j"]]
@@ -140,8 +136,8 @@ def alpha_integrals(model, j, t):
             ''' % tuple([t]*2)
     elif j ==3:
         replace_dict = {"SPR_var": f"{S3}", 
-            "B_var": f"Min[ y - {S3} + {S1}, (y-{S3}+{S5})/(1+{T5}) - y ]", 
-            "A_var": f"Min[ y - {S3} + {S2},  (y-{S3}+{S4})/(1+{T4}) - z, (y-{S3}+{S6})/(1+{T6}) - y, (y-{S3}+{S7})/(1+{T7}) - z - y ]",
+            "B_var": f"Min[ z - {S3} + {S1}, (z-{S3}+{S5})/(1+{T5}) - z ]", 
+            "A_var": f"Min[ z - {S3} + {S2},  (z-{S3}+{S4})/(1+{T4}) - x, (z-{S3}+{S6})/(1+{T6}) - z, (z-{S3}+{S7})/(1+{T7}) - x - z ]",
             "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
             "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
         math_query = ''' ("ALPHA [3,%d] COMPUTATION")
@@ -149,7 +145,7 @@ def alpha_integrals(model, j, t):
             h = 3;  r = { {x, y, z} };  intlimit = Infinity;
             mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
             f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-            intres = Integrate[f, {y, SPR, intlimit}, {z, -intlimit, B}, {x, -intlimit, A}];
+            intres = Integrate[f, {z, SPR, intlimit}, {x, -intlimit, B}, {y, -intlimit, A}];
             Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [3,%d]")
             ''' % tuple([t]*2)
     elif j == 4:
@@ -181,9 +177,9 @@ def alpha_integrals(model, j, t):
             Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [5,%d]")
             ''' % tuple([t]*2)
     elif j == 6:
-        replace_dict = {"SPR_var": f"(y-{S3}+{S6})/(1+{T6}) - y", 
-            "B_var": f"Max[ ({S6})/(1+{T6}) - z, (z-{S2}+{S6})/(1+{T6}) - z ]", 
-            "A_var": f"Min[ (z+x)*(1+{T6}) - {S6} + {S1}, ((z+x)*(1+{T6})-{S6}+{S4})/(1+{T4}) - z, ((z+x)*(1+{T6})-{S6}+{S5})/(1+{T5}) - x, ((z+x)*(1+{T6})-{S6}+{S7})/(1+{T7}) - z - x ]",
+        replace_dict = {"SPR_var": f"(z-{S3}+{S6})/(1+{T6}) - z", 
+            "B_var": f"Max[ ({S6})/(1+{T6}) - y, (y-{S2}+{S6})/(1+{T6}) - y ]", 
+            "A_var": f"Min[ (y+z)*(1+{T6}) - {S6} + {S1}, ((y+z)*(1+{T6})-{S6}+{S4})/(1+{T4}) - y, ((y+z)*(1+{T6})-{S6}+{S5})/(1+{T5}) - z, ((y+z)*(1+{T6})-{S6}+{S7})/(1+{T7}) - y - z ]",
             "mu_var": "{{ {{ {}, {}, {} }} }}".format(*model.RPMean_i.values()),
             "sig_var": "{{ {{ {}, {}, {} }}, {{ {}, {}, {} }}, {{ {}, {}, {} }} }}".format(*model.Covariance_iI.values())}
         math_query = ''' ("ALPHA [6,%d] COMPUTATION")
@@ -191,7 +187,7 @@ def alpha_integrals(model, j, t):
             h = 3;  r = { {x, y, z} };  intlimit = Infinity;
             mulres = ((r - mu).Inverse[sig].Transpose[r - mu])[[1,1]];
             f = Exp[-1/2 * mulres]/Sqrt[(2*Pi)^h * Det[sig]];
-            intres = Integrate[f, {z, SPR, intlimit}, {x, B, intlimit}, {y, -intlimit, A}];
+            intres = Integrate[f, {y, SPR, intlimit}, {z, B, intlimit}, {x, -intlimit, A}];
             Print[ToString[AccountingForm[intres, 16]]]; (" OUTPUT ALPHA [6,%d]")
             ''' % tuple([t]*2)
     elif j == 7:
@@ -216,12 +212,37 @@ def generate_alphas(model):
     alphas = {}
     for j, t in [(j,t) for t in idx["t"] for j in [0]+idx["j"]]: 
         alphas[(j,t)] = alpha_integrals(model, j, t)
-    for i,j in alphas.items(): print("  ALPHA",i,j)
     apply_alpha_contingency(model, alphas)
-    for i,j in alphas.items(): print("  UPDATED ALPHA",i,j)
-##############################################################################################################################################################################################
+    return alphas
 
-#generate_alphas(model)
+def validate_alphas(alphas, threshold=0.1):
+    for t in idx["t"]:
+        alpha_sum = sum([alphas[(j,t)] for j in [0]+idx["j"]])
+        print(">>Sum(alphas t:{}) = {}".format(t, alpha_sum))
+        if abs(1 - alpha_sum) > threshold: print(">> >> WARNING: Sum is not within [1 +/- threshold={}]".format(threshold))
+    for t in idx["t"]: alphas.pop((0,t))  # remove alpha0 since it is not used by the model
+    return alphas
+
+input_reader = XLSXReader(config.input_path)
+idx, params = input_reader.extract_idxParams()
+model = ConcreteModel()
+print(">>Using the solver {} running in {}".format(config.solver_name, config.solver_path))
+print(">>Parsing .xlsx file in {}".format(config.input_path))
+print(">>Loaded index values:")
+for idx_name, idx_range in idx.items():
+    print("{} = {}".format(idx_name, idx_range))
+print(">>Loaded parameter values:")
+for name, value in params.items():
+    setattr(model, name, Param(*input_reader.get_idx(name, idx) , initialize=value, default=-1))
+    stored_variable = getattr(model, name)  # OR use hasattr
+    stored_value = list(stored_variable.values()) if type(stored_variable) == pyomo.core.base.param.IndexedParam else stored_variable.value
+    print("model.{} = {}".format(name, stored_value))
+
+alphas = generate_alphas(model)
+alpha_jt = validate_alphas(alphas)
+print(">>Storing calculated alpha_jt parameters")
+model.alpha_jt = Param(idx["j"], idx["t"], initialize=alpha_jt, default=-1)
+model.alpha_jt.display()
 
 ## >> VARIABLES 
 

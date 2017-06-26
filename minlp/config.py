@@ -15,7 +15,7 @@ solver_options = {
     "wantsol" : 1,
     "output_file" : "{}\\output.txt".format(current_directory),
     "max_iter" : 6000,
-    "allowable_gap" : 100000000,
+    #"bonmin.allowable_gap" : 100000000,
 }
 
 # XLSX READER Variables
