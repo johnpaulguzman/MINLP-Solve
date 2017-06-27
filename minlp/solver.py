@@ -24,7 +24,7 @@ def print_vars(model):  # TODO generalize to all model components
         elif hasattr(item, "valeus"): value_s = item.values
         else: value_s = "No value_s"
         entries += ["{} = {}".format(str(item), value_s)]
-    row_print(entries)
+    row_print(entries, line_size=7) # TODO
 
 def PyomoMinMax(a, b, do_min=True):
     if do_min: return base.expr.Expr_if(IF=a < b, THEN=a, ELSE=b)
@@ -210,9 +210,12 @@ def alpha_integrals(model, j, t):
 def generate_alphas(model):
     if not os.path.exists(config.math_script_dir): os.makedirs(config.math_script_dir)                           
     alphas = {}
-    for j, t in [(j,t) for t in idx["t"] for j in [0]+idx["j"]]: 
+    for j, t in [(j,t) for t in idx["t"][:1] for j in [0]+idx["j"]]: 
         alphas[(j,t)] = alpha_integrals(model, j, t)
+    for i,j in alphas.items(): print(">> Generated alpha_{}: {}".format(i,j))
     apply_alpha_contingency(model, alphas)
+    for i,j in alphas.items(): print(">> Updated alpha_{}: {}".format(i,j))
+    #beep(); import code; code.interact(local=locals())
     return alphas
 
 def validate_alphas(alphas, threshold=0.1):
@@ -238,8 +241,7 @@ for name, value in params.items():
     stored_value = list(stored_variable.values()) if type(stored_variable) == pyomo.core.base.param.IndexedParam else stored_variable.value
     print("model.{} = {}".format(name, stored_value))
 
-alphas = generate_alphas(model)
-alpha_jt = validate_alphas(alphas)
+alpha_jt = config.precalculated_alphas if hasattr(config, "precalculated_alphas") else validate_alphas(generate_alphas(model))
 print(">>Storing calculated alpha_jt parameters")
 model.alpha_jt = Param(idx["j"], idx["t"], initialize=alpha_jt, default=-1)
 model.alpha_jt.display()
