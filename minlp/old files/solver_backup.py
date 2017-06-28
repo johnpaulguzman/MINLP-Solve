@@ -6,7 +6,9 @@ from time import time
 import pprint; indented_print = pprint.PrettyPrinter(indent=4).pprint
 #import code; code.interact(local=locals())
 start_time = time()
-
+    def init_ndim_array(dimensions, default=None):
+        if type(dimensions) is not list or len(dimensions) <= 0: return default
+        else: return init_ndim_array(dimensions, default=[default]*dimensions.pop())
 
 """
 SPR = 14

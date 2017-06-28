@@ -5,9 +5,24 @@ import config
 class XLSXReader:
     none_index = lambda array: array.index(None) if None in array else None
 
+    def write_row(self, row):
+        for index, item in enumerate(row):
+            self.current_sheet.cell(row=self.row_counter, column=index+1, value=item)
+        self.row_counter += 1
+
+    def write_data(self, rows_list):
+        book = openpyxl.load_workbook(self.xlsx_path)
+        self.current_sheet = book.get_sheet_by_name(config.derived_data_sheet)
+        self.row_counter = 0
+        for index,cell in enumerate(self.current_sheet["A"]):
+            if cell.value: self.row_counter = index + 3
+        for rows in rows_list: self.write_row(rows)
+        book.save(self.xlsx_path)
+
     def __init__(self, xlsx_path):
         self.round_places = 16 - 1 # config.decimal_precision = 16
-        self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(xlsx_path, data_only=True))
+        self.xlsx_path = xlsx_path
+        self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(self.xlsx_path, data_only=True))
 
     def extract_data_chunks(self, book, exclude=None):
         data, data_chunks, data_dump = [], [], []
