@@ -55,8 +55,10 @@ class AlphaGenerator:
         for key, value in dict.items(): string = string.replace(key, value)
         return string
 
+
     @timeout(config.mathematica_timeout)
     def RunMathematica(self, query, values, j, t, get_last_only=True):
+        #return t for testing
         start_time = time()
         script_dir = "{}\\alpha_jt[{},{}].m".format(config.math_script_dir, j, t)
         run_script = self.dict_replace(query, values)
@@ -68,6 +70,7 @@ class AlphaGenerator:
         print(">>Returned: {} | Time elapsed (sec): {}".format(script_return, time() - start_time))
         return script_return[-1] if get_last_only else script_return
 
+
     def make_table(self, alphas):
         out = ""
         for index, item in enumerate(alphas.values()):
@@ -75,18 +78,24 @@ class AlphaGenerator:
             out += (end + ("{:<"+str(24)+"}").format(item))
         return out
 
+
     def generate_alphas(self):
         if not os.path.exists(config.math_script_dir): os.makedirs(config.math_script_dir)                           
         self.temp_alphas = {}
-        for j, t in [(j,t) for t in self.idx["t"][:1] for j in [0]+self.idx["j"]]: # just generate for t=1
-            #alphas[(j,t)] = self.alpha_integrals(j, t)
-            self.temp_alphas[(j,t)] = self.mega_integrals(j, t)
-        for other_t in self.idx["t"][1:]: # copy t=1 to other t's
-            for j in [0]+self.idx["j"]: self.temp_alphas[(j,other_t)] = self.temp_alphas[(j,1)]
-
+        if config.alpha_generator_option == config.AlphaOptions.calculate_all_t:
+            for j, t in [(j,t) for t in self.idx["t"] for j in [0]+self.idx["j"]]: # generate for all t
+                self.temp_alphas[(j,t)] = self.mega_integrals(j, t)
+        elif config.alpha_generator_option == config.AlphaOptions.calculate_first_t:
+            for j, t in [(j,t) for t in self.idx["t"][:1] for j in [0]+self.idx["j"]]: # just generate for t=1
+                self.temp_alphas[(j,t)] = self.mega_integrals(j, t)
+            for other_t in self.idx["t"][1:]: # copy t=1 to other t's
+                for j in [0]+self.idx["j"]: self.temp_alphas[(j,other_t)] = self.temp_alphas[(j,1)]
+        else:
+            raise Exception("Alpha generator option not valid!")
         self.apply_alpha_contingency(self.temp_alphas)
 
         return self.validate_alphas(self.temp_alphas)
+
 
     def is_float(self, item):
         try:
@@ -94,6 +103,7 @@ class AlphaGenerator:
             return True
         except:
             return False
+
 
     def mega_integrals(self, j, t):
         S1, S2, S3, S4, S5, S6, S7 = [self.model.SPR_jt[j,t] for j in self.idx["j"]]
@@ -313,8 +323,48 @@ class AlphaGenerator:
         else: raise Exception("ERROR: This program only works for i=[1..3], j=[1..7]")
 
 
+    def apply_alpha_contingency(self, alphas):
+        special_case_ks = [5, 6, 7]
+        are_non0 = [(bool(self.model.Contingency_k[k]), k) for k in self.idx["k"]]
+        case_number = sum([is_non0[0] for is_non0 in are_non0])
+        print(">>Contingency Case: {}".format(case_number))
+        update_ks = [is_non0[1] for is_non0 in are_non0 if is_non0[0]]
+        if case_number == 0:  # Case when all thetas are 0
+            pass # Update nothing
+        elif case_number == 1:  # Case when exactly 1 theta is 0
+            for t in self.idx["t"]:
+                alphas[(update_ks[0],t)] = 1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j != update_ks[0]])
+        elif case_numer > 1: # Case when more 1 thetas are 0
+            for t in self.idx["t"]:
+                for update_k in update_ks:
+                    alphas[(update_k,t)] = (1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j not in update_ks])) * self.model.Contingency_k[update_k] / sum(self.model.Contingency_k[k_non0] for k_non0 in self.idx["k"] if k_non0 in update_ks)
+
+        do_special_case = sum([bool(self.model.Contingency_k[k_special]) for k_special in special_case_ks])
+        if do_special_case == 0:
+            pass # 5,6,7 are all non zeroes
+        else:
+            if case_number == 1:
+                for t in self.idx["t"]:
+                    alphas[(7,t)] = 1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j != update_ks[0]])
+            elif case_numer > 1: # Case when more 1 thetas are 0
+                for t in self.idx["t"]:
+                    for update_k in update_ks:
+                        alphas[(7,t)] = (1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j not in update_ks])) * self.model.Contingency_k[update_k] / sum(self.model.Contingency_k[k_non0] for k_non0 in self.idx["k"] if k_non0 in update_ks)
+
+
+    def validate_alphas(self, alphas, threshold=0.1):
+        for t in self.idx["t"]:
+            alpha_sum = sum([alphas[(j,t)] for j in [0]+self.idx["j"]])
+            print(">>Sum(alphas t:{}) = {}".format(t, alpha_sum))
+            if abs(1 - alpha_sum) > threshold: print(">> >> WARNING: Sum is not within [1 +/- threshold={}]".format(threshold))
+        for t in self.idx["t"]: alphas.pop((0,t))  # remove alpha0 since it is not used by the self.model
+        return alphas
+
+
     def alpha_integrals(self, j, t):
+        raise Exception("Doesn't work for some SPR4 values")
         S1, S2, S3, S4, S5, S6, S7 = [self.model.SPR_jt[j,t] for j in self.idx["j"]]
+        #S1, S2, S3, S4, S5, S6, S7 = ["S{}S".format(i) for i in range(1,8,)] # SYMBOLIC PROBLEM
         T4, T5, T6, T7 = [self.model.Contingency_k[k] for k in self.idx["k"]] 
         if j == 0:
             replace_dict = {
@@ -431,41 +481,3 @@ class AlphaGenerator:
                 ''' % tuple([t]*2)
         else: raise Exception("ERROR: This program only works for i=[1..3], j=[1..7]")
         return self.RunMathematica(math_query, replace_dict, j, t)
-
-
-    def apply_alpha_contingency(self, alphas):
-        special_case_ks = [5, 6, 7]
-        are_non0 = [(bool(self.model.Contingency_k[k]), k) for k in self.idx["k"]]
-        case_number = sum([is_non0[0] for is_non0 in are_non0])
-        print(">>Contingency Case: {}".format(case_number))
-        update_ks = [is_non0[1] for is_non0 in are_non0 if is_non0[0]]
-        if case_number == 0:  # Case when all thetas are 0
-            pass # Update nothing
-        elif case_number == 1:  # Case when exactly 1 theta is 0
-            for t in self.idx["t"]:
-                alphas[(update_ks[0],t)] = 1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j != update_ks[0]])
-        elif case_numer > 1: # Case when more 1 thetas are 0
-            for t in self.idx["t"]:
-                for update_k in update_ks:
-                    alphas[(update_k,t)] = (1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j not in update_ks])) * self.model.Contingency_k[update_k] / sum(self.model.Contingency_k[k_non0] for k_non0 in self.idx["k"] if k_non0 in update_ks)
-        # NOT TESTED
-        do_special_case = sum([bool(self.model.Contingency_k[k_special]) for k_special in special_case_ks])
-        if do_special_case == 0:
-            pass # 5,6,7 are all non zeroes
-        else:
-            if case_number == 1:
-                for t in self.idx["t"]:
-                    alphas[(7,t)] = 1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j != update_ks[0]])
-            elif case_numer > 1: # Case when more 1 thetas are 0
-                for t in self.idx["t"]:
-                    for update_k in update_ks:
-                        alphas[(7,t)] = (1 - sum([alphas[(j,t)] for j in [0]+self.idx["j"] if j not in update_ks])) * self.model.Contingency_k[update_k] / sum(self.model.Contingency_k[k_non0] for k_non0 in self.idx["k"] if k_non0 in update_ks)
-
-
-    def validate_alphas(self, alphas, threshold=0.1):
-        for t in self.idx["t"]:
-            alpha_sum = sum([alphas[(j,t)] for j in [0]+self.idx["j"]])
-            print(">>Sum(alphas t:{}) = {}".format(t, alpha_sum))
-            if abs(1 - alpha_sum) > threshold: print(">> >> WARNING: Sum is not within [1 +/- threshold={}]".format(threshold))
-        for t in self.idx["t"]: alphas.pop((0,t))  # remove alpha0 since it is not used by the self.model
-        return alphas

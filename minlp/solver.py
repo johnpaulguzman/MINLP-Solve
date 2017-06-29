@@ -6,8 +6,6 @@ import config
 from alpha_generator import AlphaGenerator
 from xlsx_reader import XLSXReader
 
-import winsound
-def beep(): winsound.Beep(300,2000)
 
 def row_print(array, padding=32, line_size=5):
     for index, item in enumerate(array):
@@ -65,9 +63,7 @@ if not hasattr(model, "alpha_jt"):
     data_write = [ ["alpha_jt"] + ["t={}".format(t) for t in idx["t"]] ]
     for j in idx["j"]: 
         data_write += [ ["j={}".format(j)] + [item for j_then_t,item in alpha_jt.items() if j_then_t[0] == j] ]
-    input_reader.write_data(data_write)
-
-if not hasattr(model, "SP_jt"):
+    data_write += [ [None] ]
     SP_jt = {}
     for index,value in model.SPR_jt.items():
         SP_jt[index] = value / (1+model.MARKUP)
@@ -75,10 +71,14 @@ if not hasattr(model, "SP_jt"):
     model.SP_jt = Param(idx["j"], idx["t"], initialize=SP_jt, default=-1)
     model.SP_jt.display()
     print(">>Storing calculated SP_jt parameters to excel file")
-    data_write = [ ["SP_jt"] + ["t={}".format(t) for t in idx["t"]] ]
+    data_write += [ ["SP_jt"] + ["t={}".format(t) for t in idx["t"]] ]
     for j in idx["j"]: 
         data_write += [ ["j={}".format(j)] + [item for j_then_t,item in SP_jt.items() if j_then_t[0] == j] ]
+    input_reader.clear_sheet() # CLEAR DERIVED DATA SHEET
     input_reader.write_data(data_write)
+
+if config.halt_after_alpha_generate:
+    input(">>Press 'Enter' to continue ...")
 
 ## >> VARIABLES 
 

@@ -1,7 +1,14 @@
 import os
+from enum import Enum
 current_directory = os.path.split(os.path.abspath(__file__))[0]
 
+class AlphaOptions(Enum):
+	calculate_first_t = 1
+	calculate_all_t = 2
+
 # Mathematica Variables
+alpha_generator_option = AlphaOptions.calculate_first_t
+halt_after_alpha_generate = True
 math_exe =  "C:\\Program Files\\Wolfram Research\\Mathematica\\11.0\\math.exe"
 math_script_dir = "{}\\math_scripts".format(current_directory)
 mathematica_timeout = 30

@@ -1,28 +1,59 @@
 import openpyxl
+import contextlib
+import os
 
 import config
+
+@contextlib.contextmanager
+def load_worksheet_with_close(filename, *args, **kwargs):
+    '''
+    Open an openpyxl worksheet and automatically close it when finished.
+    '''
+    wb = openpyxl.load_workbook(filename, *args, **kwargs)
+    yield wb
+    # Create path in temporary directory and write workbook there to force it to close
+    path = os.path.join(tempfile.gettempdir(), os.path.basename(filename))
+    wb.save(filename)
+    wb.close()
+    del(ws)
+    del(wb)
 
 class XLSXReader:
     none_index = lambda array: array.index(None) if None in array else None
 
+    def clear_sheet(self, sheet_name=config.input_path):
+        book = openpyxl.load_workbook(sheet_name)
+        current_sheet = book.get_sheet_by_name(config.derived_data_sheet)
+        for row in current_sheet[current_sheet.dimensions]:
+            for cell in row: 
+                cell.value = None
+        book.save(sheet_name)
+        book.close()
+
+
     def write_row(self, row):
+        print(row)
         for index, item in enumerate(row):
             self.current_sheet.cell(row=self.row_counter, column=index+1, value=item)
         self.row_counter += 1
 
+
     def write_data(self, rows_list):
         book = openpyxl.load_workbook(self.xlsx_path)
         self.current_sheet = book.get_sheet_by_name(config.derived_data_sheet)
-        self.row_counter = 0
+        self.row_counter = 1
         for index,cell in enumerate(self.current_sheet["A"]):
             if cell.value: self.row_counter = index + 3
         for rows in rows_list: self.write_row(rows)
         book.save(self.xlsx_path)
+        book.close()
+
 
     def __init__(self, xlsx_path):
         self.round_places = 16 - 1 # config.decimal_precision = 16
         self.xlsx_path = xlsx_path
         self.data_chunks = self.extract_data_chunks(openpyxl.load_workbook(self.xlsx_path, data_only=True))
+
 
     def extract_data_chunks(self, book, exclude=None):
         data, data_chunks, data_dump = [], [], []
@@ -38,6 +69,7 @@ class XLSXReader:
             else: data_dump += [d] # note
         return data_chunks
 
+
     def init_idx(self, data_chunk):
         index_data = {}
         for index, index_range, *_ in data_chunk[1:]:
@@ -45,13 +77,16 @@ class XLSXReader:
             index_data[index] = list(range(int(lb), int(ub)+1))
         return index_data
 
+
     def parse_dim_info(self, dims_dict, dim_info):
         if not dim_info: return 
         dim_index, dim_value, *_ = dim_info.split(config.assign_delimiter)
         dims_dict[dim_index] = dim_value
 
+
     def process_number(self, number):
         return round(float(number), self.round_places)
+
 
     def extract_idxParams(self):
         P = {}
@@ -76,6 +111,7 @@ class XLSXReader:
                         P[index][index_values] = cell_value
         return (idx, P)
 
+
     def get_dims(self, name):
         splitted = name.split(config.dims_delimiter)
         return tuple(splitted[1]) if len(splitted) == 2 else []
@@ -83,4 +119,3 @@ class XLSXReader:
     def get_idx(self, name, idx):
         dims = self.get_dims(name)
         return tuple([(idx.get(dim.lower())) for dim in dims])
-
